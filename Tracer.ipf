@@ -1,16 +1,12 @@
 #pragma TextEncoding="UTF-8"
 #pragma rtGlobals=3
-#pragma version=5.69
+#pragma version=5.71
 #pragma IgorVersion=8
 #pragma ModuleName=tracer
 
-// Uncomment the dev definition for diagnostics:
-#define dev
-
 // --------------------- Project Updater header ----------------------
-// If you're using Igor Pro 8 or later and have Project Updater
-// installed, this package can check periodically for new releases.
-// https://www.wavemetrics.com/project/Updater
+// Project Updater can notify you when a new release of this project is 
+// available. See https://www.wavemetrics.com/project/Updater
 static constant kProjectID=342 // the project node on IgorExchange
 static strconstant ksShortTitle="Tracer" // the project short title on IgorExchange
 
@@ -37,9 +33,10 @@ static strconstant ksShortTitle="Tracer" // the project short title on IgorExcha
 
 // The image plot is no longer constrained to display in plan mode.
 
+// 5.71 Includes version check
 // 5.70 Includes Bezier to Wave conversion, contributed by Christian 
 // Liebske, also includes some code by Jim Prouty. Reintroduces the 
-// 'equal step' alorithm used in the first version of Tracer. New 
+// 'equal step' algorithm used in the first version of Tracer. New 
 // 'folding panel' GUI. Pictures can be imported from clipboard - if 
 // vector graphics are found in clipboard conversion to bitmap is 
 // attempted. 
@@ -68,7 +65,7 @@ static strconstant ksShortTitle="Tracer" // the project short title on IgorExcha
 // some minimum range. Use this if you're trying to trace unfilled
 // symbols.
 // 4.04 Sep 22 2017 bug fix. allowing gaps could sometimes result in
-// non-integer point numbers, leading to out of range errors.
+// non-integer point numbers, leading to out-of-range errors.
 // 4.03 6/23/17 create copies of image for editing
 // 4.02 8/25/16 bug fix for editing RGBA images with an alpha
 // (transparency) channel
@@ -100,217 +97,208 @@ end
 static function Initialise()
 	
 	int left = 200, top = 10
-	GetWindow /Z TracerGraph wsizeRM
+	GetWindow/Z TracerGraph wsizeRM
 	if (v_flag == 0)
 		left = v_left
 		top = v_top
 	endif
 	
-	DoWindow /K TracerGraph // start with a fresh window - this kills package folder too
+	DoWindow/K TracerGraph // start with a fresh window - this kills package folder too
 	NewDataFolder/O root:Packages
 	NewDataFolder/O root:Packages:Tracer
 	DFREF dfr = root:Packages:Tracer
-	Make /O/N=11 dfr:sliderTicks = p*5
-	Make /O/T/N=11 dfr:sliderLabels /wave=sliderLabels
+	Make/O/N=11 dfr:sliderTicks = p*5
+	Make/O/T/N=11 dfr:sliderLabels /wave=sliderLabels
 	sliderLabels[0] = "Exact"
 	sliderLabels[10] = "Fuzzy"
-	Display /K=1/N=TracerGraph/W=(left,top,left+400,top+300) as "Tracer Image"
-	makeTracerPanel()
+	Display/K=1/N=TracerGraph/W=(left,top,left+400,top+300) as "Tracer Image"
+	MakeTracerPanel()
 end
 
-static function makeTracerPanel()
+static function MakeTracerPanel()
 	DFREF dfr = root:Packages:Tracer
-	DoWindow /K TracerPanel
-	int panelwidth = 190, panelheight = 630-145 // control panel units
-	
-	#ifdef WINDOWS
-	if (IgorVersion()>=9 && NumberByKey("BUILD", IgorInfo(0))<39154)
-		panelheight += pixels2cpu(4)
-	endif
-	#endif
+	DoWindow/K TracerPanel
+	int panelwidth = 193, panelheight = 630-145 // control panel units
 		
-	NewPanel /K=2/N=TracerPanel/W=(panelwidth,0,0,panelheight)/HOST=TracerGraph/EXT=1 as "Tracer Controls"
-	ModifyPanel /W=TracerGraph#TracerPanel, noEdit=1
+	NewPanel/K=2/N=TracerPanel/W=(panelwidth,0,0,panelheight)/HOST=TracerGraph/EXT=1 as "Tracer Controls"
+	ModifyPanel/W=TracerGraph#TracerPanel, noEdit=1
 	
-	variable left=15, top=5, groupw=182, font=12
+	variable left=10, top=5, groupw=182, font=12
 	
 	// group 0: Image selection
-	CheckBox check0, win=TracerPanel,pos={5.00,top},size={37.00,16.00},value=1,mode=2, title="Image selection", Proc=tracer#tracerCheckBoxes, fsize=font
+	CheckBox chk0, win=TracerPanel, pos={0,top}, size={37,16}, value=1, mode=2, title="Image Selection", Proc=tracer#tracerCheckBoxes, fsize=font
 	top += 15
-	GroupBox group_g0, win=TracerPanel,pos={left,top},size={groupw,60},title="", fsize=font
-	GroupBox group_g0, win=TracerPanel,pos+={-10,0}
+	GroupBox grp_g0, win=TracerPanel, pos={left,top}, size={groupw,60}, title="", fsize=font
 	top += 10
-	Button btnLoad_g0, win=TracerPanel,pos={25,top},size={60,20},Proc=tracer#tracerButtons,title="Load..."
-	Button btnLoad_g0, win=TracerPanel,help={"Load an image to current data folder"}, fsize=font
-	Button btnClean_g0, win=TracerPanel,pos={105,top},size={60,20},title="Clear...", Proc=tracer#tracerButtons
-	Button btnClean_g0, win=TracerPanel,help={"Kill all images created by Tracer"}, fsize=font
+	Button btnLoad_g0, win=TracerPanel, pos={left+20,top}, size={60,20}, proc=tracer#tracerButtons, title="Load..."
+	Button btnLoad_g0, win=TracerPanel, help={"Load an image to current data folder"}, fsize=font
+	Button btnClean_g0, win=TracerPanel, pos={left+100,top}, size={60,20}, title="Clear...", Proc=tracer#tracerButtons
+	Button btnClean_g0, win=TracerPanel, help={"Kill all images created by Tracer"}, fsize=font
 	top += 25
-	PopupMenu popImage_g0, win=TracerPanel, mode=1, Value=tracer#getImgList(), pos={left,top},size={190,20}
+	PopupMenu popImage_g0, win=TracerPanel, mode=1, Value=tracer#getImgList(), pos={left+10,top}, size={190,20}
 	PopupMenu popImage_g0, win=TracerPanel, Proc=tracer#tracerPopMenu, title="Display: ", fsize=font
 	PopupMenu popImage_g0, win=TracerPanel, help={"Display an image from current data folder"}
 	top += 25
 	
 	// group 1: Set Scale
-	CheckBox check1, win=TracerPanel,pos={5.00,top},size={37.00,16.00},value=1,mode=2, title="Set scale", Proc=tracer#tracerCheckBoxes, fsize=font
+	CheckBox chk1, win=TracerPanel, pos={0,top}, size={37,16}, value=1, mode=2, title="Set Scale", Proc=tracer#tracerCheckBoxes, fsize=font
 	top += 15
-	GroupBox group_g1, win=TracerPanel,pos={left,top},size={groupw,40},title="", fsize=font
-	GroupBox group_g1, win=TracerPanel,pos+={-10,0}
+	GroupBox grp_g1, win=TracerPanel, pos={left,top}, size={groupw,40}, title="", fsize=font
 	top += 10
-	Button btnStartScale_g1, win=TracerPanel, pos={left,top},size={45,20},Proc=tracer#tracerButtons,title="Show"//,fColor=(65535,65533,65534)
-	Button btnStartScale_g1, win=TracerPanel, help={"Click to toggle setscale cursors"}
-	CheckBox checkLogX_g1, win=TracerPanel,pos={65,top},size={36,14},Proc=tracer#tracerCheckBoxes,title="Log X"
-	CheckBox checkLogX_g1, win=TracerPanel,value=0, fsize=font, help={"Check for logarithmic X axis"}
-	CheckBox checkLogY_g1, win=TracerPanel,pos={120,top},size={36,14},Proc=tracer#tracerCheckBoxes,title="Log Y"
-	CheckBox checkLogY_g1, win=TracerPanel,value=0, fsize=font, help={"Check for logarithmic Y axis"}
+	Button btnStartScale_g1, win=TracerPanel, pos={left+10,top}, size={45,20}, proc=tracer#tracerButtons, title="Show"//,fColor=(65535,65533,65534)
+	Button btnStartScale_g1, win=TracerPanel, help={"Click to toggle setscale cursors"}, fsize=font
+	CheckBox chkLogX_g1, win=TracerPanel, pos={left+60,top}, size={36,14}, proc=tracer#tracerCheckBoxes, title="Log X"
+	CheckBox chkLogX_g1, win=TracerPanel, value=0, fsize=font, help={"Check for logarithmic X axis"}
+	CheckBox chkLogY_g1, win=TracerPanel, pos={left+115,top}, size={36,14}, proc=tracer#tracerCheckBoxes, title="Log Y"
+	CheckBox chkLogY_g1, win=TracerPanel, value=0, fsize=font, help={"Check for logarithmic Y axis"}
 	top += 30
 	
 	// group 2: Output
-	CheckBox check2, win=TracerPanel,pos={5.00,top},size={16.00,16.00},value=1,mode=2, title="Output", Proc=tracer#tracerCheckBoxes, fsize=font
+	CheckBox chk2, win=TracerPanel, pos={0,top}, size={16,16}, value=1, mode=2, title="Output", Proc=tracer#tracerCheckBoxes, fsize=font
 	top += 15
-	GroupBox group_g2, win=TracerPanel,pos={left,top},size={groupw,60},title="", fsize=font
-	GroupBox group_g2, win=TracerPanel,pos+={-10,0}
+	GroupBox grp_g2, win=TracerPanel, pos={left,top}, size={groupw,60}, title="", fsize=font
 	top += 10
-	SetVariable setvarTraceName_g2, win=TracerPanel,pos={18,top},size={145,16},Proc=tracer#tracerSetVar,title="Create:"
-	SetVariable setvarTraceName_g2, win=TracerPanel,value=_STR:UniqueName("trace",1,0), fsize=font, help={"Set name for new trace"}
+	SetVariable svTraceName_g2, win=TracerPanel, pos={left+13,top}, size={145,16}, proc=tracer#tracerSetVar, title="Create:"
+	SetVariable svTraceName_g2, win=TracerPanel, value=_STR:UniqueName("trace",1,0), fsize=font, help={"Set name for new trace"}
 	top += 25
-	CheckBox checkXY_g2, win=TracerPanel,pos={40,top},size={58,14},Proc=tracer#tracerCheckBoxes,title="Prefer XY Data"
-	CheckBox checkXY_g2, win=TracerPanel,value=0, help={"Create X and Y waves\rEqual step output is always XY"}, fsize=font
+	CheckBox chkXY_g2, win=TracerPanel, pos={left+35,top}, size={58,14}, proc=tracer#tracerCheckBoxes, title="Prefer XY Data"
+	CheckBox chkXY_g2, win=TracerPanel, value=0, help={"Create X and Y waves\rEqual step output is always XY"}, fsize=font
 	top += 25
 	
 	// group 3: Extract
-	CheckBox check3, win=TracerPanel,pos={5.00,top},size={37.00,16.00},value=1,mode=2, title="Extract", Proc=tracer#tracerCheckBoxes, fsize=font
+	CheckBox chk3, win=TracerPanel, pos={0,top}, size={37,16}, value=1, mode=2, title="Extract", Proc=tracer#tracerCheckBoxes, fsize=font
 	top += 15
-	GroupBox group_g3, win=TracerPanel,pos={left,top},size={groupw,215},title="", fsize=font
-	GroupBox group_g3, win=TracerPanel,pos+={-10,0}
+	GroupBox grp_g3, win=TracerPanel, pos={left,top}, size={groupw,215}, title="", fsize=font
 	top += 10
-	PopupMenu popTraceRGB_g3, win=TracerPanel,pos={20,top},size={150,21},Proc=tracer#tracerPopMenu, title="Target color"//, bodywidth=50
-	PopupMenu popTraceRGB_g3, win=TracerPanel,mode=1,popColor= (0,0,0),value= #"\"*COLORPOP*\"", fsize=font
-	PopupMenu popTraceRGB_g3, win=TracerPanel,help={"Select \"Other...\", then the eye dropper to select color with mouse"}
+	PopupMenu popTraceRGB_g3, win=TracerPanel, pos={left+15,top}, size={150,21}, proc=tracer#tracerPopMenu, title="Target color"//, bodywidth=50
+	PopupMenu popTraceRGB_g3, win=TracerPanel, mode=1, popColor=(0,0,0), value=#"\"*COLORPOP*\"", fsize=font
+	PopupMenu popTraceRGB_g3, win=TracerPanel, help={"Select \"Other...\", then the eye dropper to select color with mouse"}
 	top += 25
-	Slider sliderFuzzy_g3, win=TracerPanel,pos={18,top},size={153,42},fSize=font-2
-	Slider sliderFuzzy_g3, win=TracerPanel,limits={0,50,2.5},vert=0
-	Slider sliderFuzzy_g3, win=TracerPanel,userTicks={dfr:sliderTicks,dfr:sliderLabels}
-	Slider sliderFuzzy_g3, win=TracerPanel,value=7.5, help={"Increase fuzziness to accept a greater range of pixel colors"}
+	Slider sliderFuzzy_g3, win=TracerPanel, pos={left+13,top}, size={153,42},fSize=font-2
+	Slider sliderFuzzy_g3, win=TracerPanel, limits={0,50,2.5}, vert=0
+	Slider sliderFuzzy_g3, win=TracerPanel, userTicks={dfr:sliderTicks,dfr:sliderLabels}
+	Slider sliderFuzzy_g3, win=TracerPanel, value=7.5, help={"Increase fuzziness to accept a greater range of pixel colors"}
 	top += 50
-	CheckBox checkXscan_g3, win=TracerPanel,mode=1,pos={25,top},size={71,14},Proc=tracer#tracerCheckBoxes,title="X-scan", fsize=font
-	CheckBox checkXscan_g3, win=TracerPanel,help={"Follow trace from left to right"}, value=1
-	CheckBox checkStep_g3, win=TracerPanel,mode=1,pos={90,top},size={71,14},Proc=tracer#tracerCheckBoxes,title="Equal Step", fsize=font
-	CheckBox checkStep_g3, win=TracerPanel,help={"Follow trace with equal steps"}, value=0
+	CheckBox chkXscan_g3, win=TracerPanel, mode=1, pos={left+20,top}, size={71,14}, proc=tracer#tracerCheckBoxes, title="X-scan", fsize=font
+	CheckBox chkXscan_g3, win=TracerPanel, help={"Follow trace from left to right"}, value=1
+	CheckBox chkStep_g3, win=TracerPanel, mode=1, pos={left+85,top}, size={71,14}, proc=tracer#tracerCheckBoxes, title="Equal Step", fsize=font
+	CheckBox chkStep_g3, win=TracerPanel, help={"Follow trace with equal steps"}, value=0
 	top += 25
-	SetVariable setvarRange_g3, win=TracerPanel,pos={25,top},size={140,16},title="Minimum Range"
-	SetVariable setvarRange_g3, win=TracerPanel,limits={0,Inf,0},value=_NUM:0, fsize=font, bodyWidth=50
-	SetVariable setvarRange_g3, win=TracerPanel,help={"Force search to consider all pixels within range when\rsearching for bounds of trace (default = 0)"}
-	SetVariable setvarStepLen_g3, win=TracerPanel,pos={25,top},size={140,16},title="Step Length"
-	SetVariable setvarStepLen_g3, win=TracerPanel,limits={5,Inf,0},value=_NUM:15, fsize=font, bodyWidth=50
-	SetVariable setvarStepLen_g3, win=TracerPanel,help={"Radius of sweep in pixels"}, disable=1
+	SetVariable svRange_g3, win=TracerPanel, pos={left+20,top}, size={140,16}, title="Minimum Range"
+	SetVariable svRange_g3, win=TracerPanel, limits={0,Inf,0}, value=_NUM:0, fsize=font, bodyWidth=50
+	SetVariable svRange_g3, win=TracerPanel, help={"Force search to consider all pixels within range when\rsearching for bounds of trace (default = 0)"}
+	SetVariable svStepLen_g3, win=TracerPanel, pos={left+20,top}, size={140,16}, title="Step Length"
+	SetVariable svStepLen_g3, win=TracerPanel, limits={5,Inf,0}, value=_NUM:15, fsize=font, bodyWidth=50
+	SetVariable svStepLen_g3, win=TracerPanel, help={"Radius of sweep in pixels"}, disable=1
 	top += 25
-	SetVariable setvarJump_g3, win=TracerPanel,pos={25,top},size={140,16},title="Jump Threshold"
-	SetVariable setvarJump_g3, win=TracerPanel,limits={0,Inf,0},value=_NUM:100, fsize=font, bodyWidth=50
-	SetVariable setvarJump_g3, win=TracerPanel,help={"Trace-colored pixels must be found within this range of\rprevious pixel to be considered part of continuous trace"}
-	SetVariable setvarAngle_g3, win=TracerPanel,pos={25,top},size={140,16},title="Sweep Angle"
-	SetVariable setvarAngle_g3, win=TracerPanel,limits={10,270,0},value=_NUM:90, fsize=font, bodyWidth=50
-	SetVariable setvarAngle_g3, win=TracerPanel,help={"Range of sweep in degrees"}, disable=1
+	SetVariable svJump_g3, win=TracerPanel, pos={left+20,top}, size={140,16}, title="Jump Threshold"
+	SetVariable svJump_g3, win=TracerPanel, limits={0,Inf,0}, value=_NUM:100, fsize=font, bodyWidth=50
+	SetVariable svJump_g3, win=TracerPanel, help={"Trace-colored pixels must be found within this range of\rprevious pixel to be considered part of continuous trace"}
+	SetVariable svAngle_g3, win=TracerPanel, pos={left+20,top}, size={140,16}, title="Sweep Angle"
+	SetVariable svAngle_g3, win=TracerPanel, limits={10,270,0}, value=_NUM:90, fsize=font, bodyWidth=50
+	SetVariable svAngle_g3, win=TracerPanel, help={"Range of sweep in degrees"}, disable=1
 	top += 25
-	CheckBox checkGaps_g3, win=TracerPanel,pos={50,top},size={71,14},Proc=tracer#tracerCheckBoxes,title="Allow Gaps", fsize=font
-	CheckBox checkGaps_g3, win=TracerPanel,value=0, help={"Allow tracing to continue when no target pixel is found"}, disable=0
-	SetVariable setvarMaxGap_g3, win=TracerPanel,pos={65,top},size={100,16},title="Maximum Gap"
-	SetVariable setvarMaxGap_g3, win=TracerPanel,limits={0,Inf,0},value=_NUM:50, fsize=font, bodyWidth=50
-	SetVariable setvarMaxGap_g3, win=TracerPanel,help={"Maximum gap (in pixels) between segments\rMust be greater than step length to allow gaps"}, disable=1
+	CheckBox chkGaps_g3, win=TracerPanel, pos={left+45,top}, size={71,14}, proc=tracer#tracerCheckBoxes, title="Allow Gaps", fsize=font
+	CheckBox chkGaps_g3, win=TracerPanel, value=0, help={"Allow tracing to continue when no target pixel is found"}, disable=0
+	SetVariable svMaxGap_g3, win=TracerPanel, pos={left+60,top}, size={100,16}, title="Maximum Gap"
+	SetVariable svMaxGap_g3, win=TracerPanel, limits={0,Inf,0}, value=_NUM:50, fsize=font, bodyWidth=50
+	SetVariable svMaxGap_g3, win=TracerPanel, help={"Maximum gap (in pixels) between segments.\rMust be greater than step length to allow gaps"}, disable=1
 	top += 25
-	Button btnExtract_g3, win=TracerPanel,pos={52,top},size={86,20},Proc=tracer#tracerButtons,title="Extract Trace", fsize=font, fColor=(57346,65535,49151), help={"start tracing from cursor location"}
+	Button btnExtract_g3, win=TracerPanel, pos={left+47,top}, size={86,20}, Proc=tracer#tracerButtons, title="Extract Trace", fsize=font, fColor=(57346,65535,49151), help={"Start tracing from cursor location"}
 	top += 30
 			
 	// group 4: editing controls
-	CheckBox check4, win=TracerPanel,pos={5.00,top},size={37.00,16.00},value=0,mode=2, title="Edit", Proc=tracer#tracerCheckBoxes, fsize=font
+	CheckBox chk4, win=TracerPanel, pos={0,top}, size={37,16}, value=0, mode=2, title="Edit", Proc=tracer#tracerCheckBoxes, fsize=font
 	top += 15
-	GroupBox group_g4, win=TracerPanel,pos={left,top},size={groupw,65},title="", fsize=font
-	GroupBox group_g4, win=TracerPanel,pos+={-10,0}, disable=1
+	GroupBox grp_g4, win=TracerPanel, pos={left,top}, size={groupw,65}, title="", fsize=font, disable=1
 	top += 10
-	Button btnStartEditImg_g4, win=TracerPanel,pos={20,top},size={70,20},Proc=tracer#tracerButtons,title="Edit image", fsize=font
-	Button btnStartEditImg_g4, win=TracerPanel,help={"Edit the image to remove obstacles to tracing"}, disable=1
-	Button btnStartEditTrace_g4, win=TracerPanel,pos={100,top},size={70,20},Proc=tracer#tracerButtons,title="Edit trace", fsize=font
-	Button btnStartEditTrace_g4, win=TracerPanel,help={"Adjust positions of points in traced curve after tracing"}, disable=1
+	Button btnStartEditImg_g4, win=TracerPanel, pos={left+15,top}, size={70,20}, proc=tracer#tracerButtons, title="Edit image", fsize=font
+	Button btnStartEditImg_g4, win=TracerPanel, help={"Edit the image to remove obstacles to tracing"}, disable=1
+	Button btnStartEditTrace_g4, win=TracerPanel, pos={left+95,top}, size={70,20}, proc=tracer#tracerButtons, title="Edit trace", fsize=font
+	Button btnStartEditTrace_g4, win=TracerPanel, help={"Adjust positions of points in traced curve after tracing"}, disable=1
 	top += 25
 	// hide some buttons behind the color popups
-	Button btn1_g4, win=TracerPanel,pos={15-1,top-1},size={50+2,20+2},title="", Proc=tracer#tracerButtons, disable=1	//, fColor=(4147,26301,65419)//, fColor=(0xFFFF,1,1)
-	Button btn2_g4, win=TracerPanel,pos={70-1,top-1},size={50+2,20+2},title="", Proc=tracer#tracerButtons, disable=1	//, fColor=(4147,26301,65419)
-	Button btn3_g4, win=TracerPanel,pos={125-1,top-1},size={50+2,20+2},title="", Proc=tracer#tracerButtons, disable=1//, fColor=(4147,26301,65419)
+	Button btn1_g4, win=TracerPanel, pos={left+10-1,top-1}, size={50+2,20+2}, title="", Proc=tracer#tracerButtons, disable=1	//, fColor=(4147,26301,65419)//, fColor=(0xFFFF,1,1)
+	Button btn2_g4, win=TracerPanel, pos={left+65-1,top-1}, size={50+2,20+2}, title="", Proc=tracer#tracerButtons, disable=1	//, fColor=(4147,26301,65419)
+	Button btn3_g4, win=TracerPanel, pos={left+120-1,top-1}, size={50+2,20+2}, title="", Proc=tracer#tracerButtons, disable=1//, fColor=(4147,26301,65419)
 	top+=1
 	string strHelp = "Click on a popup or use keys 1, 2 and 3 to switch paint color\rSelect \"Other...\", then the eye dropper to select color with mouse"
-	PopupMenu popRGB1_g4, win=TracerPanel,pos={15,top},size={50,23},Proc=tracer#tracerPopMenu, title=""//, bodywidth=50
-	PopupMenu popRGB1_g4, win=TracerPanel,mode=1,popColor=(0x0000,0x0000,0x0000),value= #"\"*COLORPOP*\"", fsize=font, disable=1
-	PopupMenu popRGB1_g4, win=TracerPanel,help={strHelp}
-	PopupMenu popRGB2_g4, win=TracerPanel,pos={70,top},size={50,23},Proc=tracer#tracerPopMenu, title=""//, bodywidth=50
-	PopupMenu popRGB2_g4, win=TracerPanel,mode=1,popColor=(0xFFFF,0x0000,0x0000),value= #"\"*COLORPOP*\"", fsize=font, disable=1	//, disable=2
-	PopupMenu popRGB2_g4, win=TracerPanel,help={strHelp}
-	PopupMenu popRGB3_g4, win=TracerPanel,pos={125,top},size={50,23},Proc=tracer#tracerPopMenu, title=""//, bodywidth=50
-	PopupMenu popRGB3_g4, win=TracerPanel,mode=1,popColor=(0xFFFF,0xFFFF,0xFFFF),value= #"\"*COLORPOP*\"", fsize=font, disable=1	//, disable=2
-	PopupMenu popRGB3_g4, win=TracerPanel,help={strHelp}
+	PopupMenu popRGB1_g4, win=TracerPanel, pos={left+10,top}, size={50,23}, proc=tracer#tracerPopMenu, title=""
+	PopupMenu popRGB1_g4, win=TracerPanel, mode=1, popColor=(0x0000,0x0000,0x0000), value= #"\"*COLORPOP*\"", fsize=font, disable=1
+	PopupMenu popRGB1_g4, win=TracerPanel, help={strHelp}
+	PopupMenu popRGB2_g4, win=TracerPanel, pos={left+65,top}, size={50,23}, proc=tracer#tracerPopMenu, title=""
+	PopupMenu popRGB2_g4, win=TracerPanel, mode=1, popColor=(0xFFFF,0x0000,0x0000), value= #"\"*COLORPOP*\"", fsize=font, disable=1	
+	PopupMenu popRGB2_g4, win=TracerPanel, help={strHelp}
+	PopupMenu popRGB3_g4, win=TracerPanel, pos={left+120,top}, size={50,23}, proc=tracer#tracerPopMenu, title=""
+	PopupMenu popRGB3_g4, win=TracerPanel, mode=1, popColor=(0xFFFF,0xFFFF,0xFFFF), value= #"\"*COLORPOP*\"", fsize=font, disable=1	
+	PopupMenu popRGB3_g4, win=TracerPanel, help={strHelp}
 	SelectEditColor(1)
 	top += 30
 		
 	top -= 60 // because group 4 controls are hidden
 	// group 5: Bezier to wave
-	CheckBox check5, win=TracerPanel,pos={5.00,top},size={37.00,16.00},value=0,mode=2, title="Bezier to wave", Proc=tracer#tracerCheckBoxes, fsize=font
-	Button btnHelp_g5, win=TracerPanel, pos={165,top}, size={15,15}, title="", Picture=Tracer#pHelp, labelBack=0
-	Button btnHelp_g5, win=TracerPanel, Proc=tracer#tracerButtons, help={"Click for Bezier Instructions"}, focusRing=0, disable=1
+	CheckBox chk5, win=TracerPanel, pos={0,top}, size={37,16}, value=0, mode=2, title="Bezier to Wave", Proc=tracer#tracerCheckBoxes, fsize=font
 	top += 15
-	GroupBox group_g5, win=TracerPanel,pos={left,top},size={groupw,90},title="", fsize=font
-	GroupBox group_g5, win=TracerPanel,pos+={-10,0}, disable=1
+	GroupBox grp_g5, win=TracerPanel, pos={left,top}, size={groupw,90}, title="", fsize=font, disable=1
 	top += 10
-	Button btnDrawMode_g5, win=TracerPanel,pos={20,top},size={80,20},title="Draw Mode", fsize=font, Proc=tracer#tracerButtons
+	Button btnDrawMode_g5, win=TracerPanel, pos={left+10,top}, size={80,20}, title="Draw Mode", fsize=font, Proc=tracer#tracerButtons
 	Button btnDrawMode_g5, help={"Activates polygon drawing mode.\rRight-click on polygon symbol and choose Draw Bezier"}, disable=1
-	Button btnClearDrawLayer_g5, win=TracerPanel,pos={115,top},size={45,20},title="Clear", fsize=font, Proc=tracer#tracerButtons
-	Button btnClearDrawLayer_g5, help={"Deletes Bezier from Drawing Layer UserFront"}, disable=1
+	Button btnClearDrawLayer_g5, win=TracerPanel, pos={left+100,top}, size={45,20}, title="Clear", fsize=font, Proc=tracer#tracerButtons
+	Button btnClearDrawLayer_g5, help={"Deletes Bezier from Drawing Layer UserFront"}, disable=1	
+	Button btnHelp_g5, win=TracerPanel, pos={left+155,top+2}, size={15,15}, title="", Picture=Tracer#pHelp, labelBack=0
+	Button btnHelp_g5, win=TracerPanel, Proc=tracer#tracerButtons, help={"Click for Bezier Instructions"}, focusRing=0, disable=1
 	top += 25
-	SetVariable setvarNPntSegm_g5, win=TracerPanel,pos={20,top},size={140,16},value =_NUM:20,title="Points per Segment"
-	SetVariable setvarNPntSegm_g5, help={"Number of wave points per segment"}, fsize=font, limits={10,Inf,0}, disable=1
+	SetVariable svNPntSegm_g5, win=TracerPanel, pos={left+15,top}, size={140,16}, value=_NUM:20, title="Points per Segment"
+	SetVariable svNPntSegm_g5, help={"Number of wave points per segment"}, fsize=font, limits={10,Inf,0}, disable=1
 	top += 25
-	Button btnExtractBezier_g5, win=TracerPanel,pos={48,top},size={90,20},fColor=(57346,65535,49151)
-	Button btnExtractBezier_g5, win=TracerPanel,title="Extract Bezier", fsize=font, Proc=tracer#tracerButtons, disable=1
+	Button btnExtractBezier_g5, win=TracerPanel, pos={left+43,top}, size={90,20},fColor=(57346,65535,49151)
+	Button btnExtractBezier_g5, win=TracerPanel, title="Extract Bezier", fsize=font, Proc=tracer#tracerButtons, disable=1
+	Button btnExtractBezier_g5, win=TracerPanel, help={"Turn Bezier curve into a wave"}
 		
 	// if we have already loaded an image, plot it
-	ControlInfo /W=TracerGraph#TracerPanel popImage_g0
-	wave /Z w_img=$S_Value
+	ControlInfo/W=TracerGraph#TracerPanel popImage_g0
+	wave/Z w_img=$S_Value
 	if (WaveExists(w_img))
 		PlotImage(w_img)
 	endif
+	
+	SetWindow TracerGraph#TracerPanel userdata(version) = num2str(ProcedureVersion(""))
 end
 
 static function FillPanelStructure(STRUCT PanelStatusStructure &s)
 	getControlValue("TracerGraph#TracerPanel", "popImage_g0", s.image)
-	getControlValue("TracerGraph#TracerPanel", "checkLogX_g1", s.logX)
-	getControlValue("TracerGraph#TracerPanel", "checkLogY_g1", s.logY)
-	getControlValue("TracerGraph#TracerPanel", "checkXscan_g3", s.xscan)
-	getControlValue("TracerGraph#TracerPanel", "checkStep_g3", s.step)
-	getControlValue("TracerGraph#TracerPanel", "setvarStepLen_g3", s.steplen)
-	getControlValue("TracerGraph#TracerPanel", "setvarAngle_g3", s.angle)
-	getControlValue("TracerGraph#TracerPanel", "setvarMaxGap_g3", s.maxgap)
+	getControlValue("TracerGraph#TracerPanel", "chkLogX_g1", s.logX)
+	getControlValue("TracerGraph#TracerPanel", "chkLogY_g1", s.logY)
+	getControlValue("TracerGraph#TracerPanel", "chkXscan_g3", s.xscan)
+	getControlValue("TracerGraph#TracerPanel", "chkStep_g3", s.step)
+	getControlValue("TracerGraph#TracerPanel", "svStepLen_g3", s.steplen)
+	getControlValue("TracerGraph#TracerPanel", "svAngle_g3", s.angle)
+	getControlValue("TracerGraph#TracerPanel", "svMaxGap_g3", s.maxgap)
 	getControlValue("TracerGraph#TracerPanel", "popTraceRGB_g3", s.trace)
 	getControlValue("TracerGraph#TracerPanel", "sliderFuzzy_g3", s.fuzzy)
-	getControlValue("TracerGraph#TracerPanel", "checkGaps_g3", s.gaps)
-	getControlValue("TracerGraph#TracerPanel", "checkXY_g2", s.XY)
-	getControlValue("TracerGraph#TracerPanel", "setvarJump_g3", s.jump)
-	getControlValue("TracerGraph#TracerPanel", "setvarRange_g3", s.range)
-	getControlValue("TracerGraph#TracerPanel", "setvarTraceName_g2", s.tracename)
+	getControlValue("TracerGraph#TracerPanel", "chkGaps_g3", s.gaps)
+	getControlValue("TracerGraph#TracerPanel", "chkXY_g2", s.XY)
+	getControlValue("TracerGraph#TracerPanel", "svJump_g3", s.jump)
+	getControlValue("TracerGraph#TracerPanel", "svRange_g3", s.range)
+	getControlValue("TracerGraph#TracerPanel", "svTraceName_g2", s.tracename)
 	getControlValue("TracerGraph#TracerPanel", "popRGB1_g4", s.rgb1)
 	getControlValue("TracerGraph#TracerPanel", "popRGB2_g4", s.rgb2)
 	getControlValue("TracerGraph#TracerPanel", "popRGB3_g4", s.rgb3)
-	getControlValue("TracerGraph#TracerPanel", "setvarNPntSegm_g5", s.segpnt)
+	getControlValue("TracerGraph#TracerPanel", "svNPntSegm_g5", s.segpnt)
 	RGB2LAB(s.trace.rgb, s.targetLAB)
 		
-	wave /Z s.img = $s.image.sval
+	wave/Z s.img = $s.image.sval
 	if (WaveExists(s.img) == 0)
 		string ImageNameString = StringFromList (0, ImageNameList("TracerGraph", ";" ))
-		wave /Z s.img = ImageNameToWaveRef("TracerGraph", ImageNameString)
+		wave/Z s.img = ImageNameToWaveRef("TracerGraph", ImageNameString)
 	endif
 	if (WaveExists(s.img))
 		s.imgsize.h = DimSize(s.img, 0)
 		s.imgsize.v = DimSize(s.img, 1)
 	endif
 	DFREF dfr = root:Packages:Tracer
-	wave /Z/SDFR=dfr s.wlogX = TracerLogX
-	wave /Z/SDFR=dfr s.wlogY = TracerLogY
+	wave/Z/SDFR=dfr s.wlogX = TracerLogX
+	wave/Z/SDFR=dfr s.wlogY = TracerLogY
 end
 
 static structure PanelStatusStructure
@@ -335,7 +323,7 @@ static structure ControlValueStructure
 endstructure
 
 static function getControlValue(string win, string controlName, STRUCT ControlValueStructure &s)
-	ControlInfo /W=$win $controlName
+	ControlInfo/W=$win $controlName
 	s.ctrlName = controlName
 	s.type = v_flag
 	s.disable = V_disable
@@ -344,7 +332,7 @@ static function getControlValue(string win, string controlName, STRUCT ControlVa
 			s.rgb.red = V_Red; s.rgb.green = V_Green; s.rgb.blue = V_Blue
 			s.rgba.red = V_Red; s.rgba.green = V_Green; s.rgba.blue = V_Blue
 			s.rgba.alpha = V_Alpha
-		case 2: // checkbox
+		case 2: // CheckBox
 		case 4: // valdisplay
 		case 5: // SetVariable
 		case 7: // slider
@@ -388,6 +376,10 @@ static function tracerButtons(STRUCT WMButtonAction &s)
 		return 0
 	endif
 	
+	if (cmpstr(s.win, "TracerPanel")==0 && CheckUpdated(s.win, 1))
+		return 0
+	endif
+	
 	// handle buttons that should work without an image
 	strswitch(s.ctrlName)
 		case "btnLoad_g0":
@@ -412,8 +404,8 @@ static function tracerButtons(STRUCT WMButtonAction &s)
 			CL_ExtractBezier()
 			return 0
 		case "btnCancel":
-			string /G root:Packages:Tracer:smouse = ""
-			KillWindow /Z tpaneltemp
+			string/G root:Packages:Tracer:smouse = ""
+			KillWindow/Z tpaneltemp
 			return 0
 	endswitch
 	
@@ -462,8 +454,8 @@ end
 
 static function SelectEditColor(int selection)
 	int i
-	Make /free wRGB={0,0,0}
-	ControlInfo /W=TracerGraph#TracerPanel check4
+	Make/free wRGB={0,0,0}
+	ControlInfo/W=TracerGraph#TracerPanel chk4
 	
 	for (i=1;i<4;i++)
 		PopupMenu $"popRGB"+num2str(i)+"_g4", win=TracerPanel, disable=v_value ? 2*(selection!=i) : 1
@@ -476,18 +468,18 @@ end
 
 static function EditImage(int start)
 	SetWindow TracerGraph hook(EditImgHook)=$""
-	ControlInfo /W=TracerPanel btnStopEditImg_g4
+	ControlInfo/W=TracerPanel btnStopEditImg_g4
 	if(v_flag == 1)
 		Button btnStopEditImg_g4, win=TracerGraph#TracerPanel, fColor=(0,0,0), title="Edit image", Rename=btnStartEditImg_g4
 	endif
 	if (start == 0)
-		DoWindow /F TracerGraph
+		DoWindow/F TracerGraph
 		return 0
 	endif
 	
-	ControlInfo /W=TracerGraph#TracerPanel popImage_g0
+	ControlInfo/W=TracerGraph#TracerPanel popImage_g0
 	string strImage = S_Value
-	wave /Z w_img = $strImage
+	wave/Z w_img = $strImage
 	if (WaveExists(w_img) == 0)
 		return 0
 	endif
@@ -521,13 +513,13 @@ static function EditImage(int start)
 	if (MakeCopy)
 		string newName = UniqueName(NameOfWave(w_img),1,0)
 		Duplicate w_img $newName /wave=w
-		note /K w ReplaceNumberByKey("TracerImage", note(w), 1, "=")
+		note/K w ReplaceNumberByKey("TracerImage", note(w), 1, "=")
 		
 		// save current axis limits
 		variable Lmin, Lmax, Bmin, Bmax
-		GetAxis /W=TracerGraph/Q left
+		GetAxis/W=TracerGraph/Q left
 		Lmin = V_min; Lmax = V_max
-		GetAxis /W=TracerGraph/Q bottom
+		GetAxis/W=TracerGraph/Q bottom
 		Bmin = V_min; Bmax = V_max
 		
 		PopupMenu popImage_g0, win=TracerGraph#TracerPanel, popmatch=NameOfWave(w)
@@ -535,19 +527,19 @@ static function EditImage(int start)
 		
 		// restore axis limits
 		if (Lmin > Lmax)
-			SetAxis /R/W=TracerGraph left, Lmin, Lmax
+			SetAxis/R/W=TracerGraph left, Lmin, Lmax
 		else
-			SetAxis /W=TracerGraph left, Lmin, Lmax
+			SetAxis/W=TracerGraph left, Lmin, Lmax
 		endif
 		if (Bmin > Bmax)
-			SetAxis /R/W=TracerGraph bottom, Bmin, Bmax
+			SetAxis/R/W=TracerGraph bottom, Bmin, Bmax
 		else
-			SetAxis /W=TracerGraph bottom, Bmin, Bmax
+			SetAxis/W=TracerGraph bottom, Bmin, Bmax
 		endif
 		strImage=newName
 	endif
 	
-	DoWindow /F TracerGraph
+	DoWindow/F TracerGraph
 	SetWindow TracerGraph hook(EditImgHook)=tracer#hookEditImg, userdata(editing)=strImage
 	Button btnStartEditImg_g4, win=TracerGraph#TracerPanel, fcolor=(65535,0,0), title="Stop edit", Rename=btnStopEditImg_g4
 	
@@ -556,7 +548,7 @@ end
 
 static function LoadTracerImage()
 	
-	LoadPICT /Q/Z "Clipboard"
+	LoadPICT/Q/Z "Clipboard"
 	if (v_flag)
 		DoAlert 2, "Do you want to load the image from the clipboard?"
 		if (v_flag == 1) // yes
@@ -593,10 +585,10 @@ static function PlotImage(wave w_img)
 	EditTrace(0)
 	ClearPlot()
 	
-	AppendImage /W=TracerGraph w_img
+	AppendImage/W=TracerGraph w_img
 	string str = NameOfWave(w_img)
 	
-	SetAxis /A
+	SetAxis/A
 	if (DimDelta(w_img, 0) < 0)
 		SetAxis/A/R bottom
 	endif
@@ -612,8 +604,8 @@ static function PlotImage(wave w_img)
 		RebuildGraph()
 	endif
 
-	Cursor /N=1/I/W=TracerGraph/C=(65535,0,0)/P/S=1 A $str 0.15*DimSize(w_img, 0), 0.5*DimSize(w_img,1)
-	Cursor /N=1/I/W=TracerGraph/C=(0,65535,0)/P/S=1 B $str 0.85*DimSize(w_img, 0), 0.5*DimSize(w_img,1)
+	Cursor/N=1/I/W=TracerGraph/C=(65535,0,0)/P/S=1 A $str 0.15*s.imgsize.h, 0.5*s.imgsize.v
+	Cursor/N=1/I/W=TracerGraph/C=(0,65535,0)/P/S=1 B $str 0.85*s.imgsize.h, 0.5*s.imgsize.v
 
 	SetWindow TracerGraph hook(tracerHook)=tracer#hookTracer
 	
@@ -626,11 +618,11 @@ static function ClearPlot()
 	string strImage="", strTrace=""
 	do
 		strImage = StringFromList (0, ImageNameList("TracerGraph", ";" ))
-		RemoveImage /Z/W=TracerGraph $strImage // in Igor 9 can use /ALL flag
+		RemoveImage/Z/W=TracerGraph $strImage // in Igor 9 can use /ALL flag
 	while(strlen(strImage))
 	do
 		strTrace = StringFromList (0, TraceNameList("TracerGraph", ";" ,1))
-		RemoveFromGraph /Z/W=TracerGraph $strTrace // in Igor 9 can use /ALL flag
+		RemoveFromGraph/Z/W=TracerGraph $strTrace // in Igor 9 can use /ALL flag
 	while(strlen(strTrace))
 	return 1
 end
@@ -665,10 +657,10 @@ static function Cleanup()
 	endif
 	ClearPlot()
 	for (i=0;i<ItemsInList(imageList);i+=1)
-		KillWaves /Z $StringFromList(i, imageList)
+		KillWaves/Z $StringFromList(i, imageList)
 	endfor
 	SetWindow TracerGraph userdata(imageList) = ""
-	ControlUpdate /W=TracerGraph#TracerPanel popImage_g0
+	ControlUpdate/W=TracerGraph#TracerPanel popImage_g0
 	return 1
 end
 
@@ -679,53 +671,52 @@ static function tracerCheckBoxes(STRUCT WMCheckboxAction &s)
 		return 0
 	endif
 	
+	if (CheckUpdated(s.win, 1))
+		return 0
+	endif
+	
 	int isStep
-	if (cmpstr(s.ctrlName, "checkXscan_g3") == 0)
+	if (cmpstr(s.ctrlName, "chkXscan_g3") == 0)
 		isStep = 0 // clicked on X-scan
 	else
-		// clicked on some other checkbox
-		ControlInfo /W=$s.win checkStep_g3
+		// clicked on some other CheckBox
+		ControlInfo/W=$s.win chkStep_g3
 		isStep = v_value
 	endif
 	
 	int group = 0
 	strswitch (s.ctrlName)
-		case "checkLogX_g1":
-			CheckBox checkXY_g2, win=TracerGraph#TracerPanel, value=s.checked, disable=2*(s.checked||isStep)
-		case "checkLogY_g1": // logX or logY
+		case "chkLogX_g1":
+			CheckBox chkXY_g2, win=TracerGraph#TracerPanel, value=s.checked, disable=2*(s.checked||isStep)
+		case "chkLogY_g1": // logX or logY
 			RebuildGraph()
 			break
-		case "check5":
+		case "chk5":
 			group ++
-		case "check4":
+		case "chk4":
 			group ++
-		case "check3":
+		case "chk3":
 			group ++
-		case "check2":
+		case "chk2":
 			group ++
-		case "check1":
+		case "chk1":
 			group ++
-		case "check0":
-			
-			// the panel is initially built with NewPanel /EXT=1/W=(190,0,0,485)
-			// coordinates are in control panel units
+		case "chk0":
 					
 			// enable or disable selected group of controls
 			ModifyControlList ControlNameList(s.win, ";", "*_g"+num2str(group)) win=$s.win, disable=!s.checked
 			
 			// figure out the height required for the groupbox
-			ControlInfo /W=$s.win $"group_g"+num2str(group)
+			ControlInfo/W=$s.win $"grp_g"+num2str(group)
 			variable HeightAdjustCPU = s.checked ? V_Height - 5 : -(V_Height - 5) // control panel units
 			variable HeightAdjustPixels = cpu2pixels(heightAdjustCPU)
+			// correct for panel expansion
+			HeightAdjustPixels *= PanelResolution("TracerGraph#TracerPanel")/PanelResolution("")
 							
-			GetWindow $s.win wsize // points, local coordinates
-						
-			variable WinHeightPoints = (v_bottom - v_top)
-			variable WinHeightPixels = points2pixels(WinHeightPoints)
-			
-			variable winWidthCPU = 190
-			variable WinWidthPixels = cpu2pixels(winWidthCPU)
-			
+			GetWindow $s.win wsize // points, local coordinates					
+			variable WinHeightPixels = points2pixels(v_bottom - v_top)
+			variable WinWidthPixels = points2pixels(V_right - V_left)
+
 			// This seems to be wrong:
 			// DisplayHelpTopic "MoveSubwindow"
 			// When any value is greater than 1, coordinates are taken to be
@@ -734,20 +725,13 @@ static function tracerCheckBoxes(STRUCT WMCheckboxAction &s)
 			// the host frame.
 			// it seems that pixels are required by MoveSubwindow and by ModifyControlList !!!!????
 			
-			// make a correction for bug in older builds of Igor 9
-			#ifdef WINDOWS
-			if (IgorVersion()>=9 && NumberByKey("BUILD", IgorInfo(0))<39154)
-				WinHeightPixels += 4
-			endif
-			#endif
-			
 			// change panel height	
-			MoveSubwindow /W=$s.win fnum=(WinWidthPixels, 0, 0, WinHeightPixels + HeightAdjustPixels)
+			MoveSubwindow/W=$s.win fnum=(WinWidthPixels, 0, 0, WinHeightPixels + HeightAdjustPixels)
 			
 			// Shift controls beneath this group up or down by height of
 			// groupbox. This is weird, because we positioned these with
 			// control panel units, but now we are using pixels to
-			// reposition?? Need to check this.
+			// reposition.
 			int i
 			for(i=group+1;i<6;i++)
 				ModifyControlList ControlNameList(s.win, ";", "*"+num2str(i)) win=$s.win, pos+={0, HeightAdjustPixels}
@@ -761,17 +745,17 @@ static function tracerCheckBoxes(STRUCT WMCheckboxAction &s)
 				// we're not enabling group 3
 				break
 			endif
-		case "checkXscan_g3":
-		case "checkStep_g3":
-			// enable or disable controls in group 3 depending on which algorithm checkbox is selected
-			SetVariable setvarJump_g3, win=TracerPanel, disable=isStep
-			SetVariable setvarRange_g3, win=TracerPanel, disable=isStep
-			SetVariable setvarStepLen_g3, win=TracerPanel, disable=!isStep
-			SetVariable setvarAngle_g3, win=TracerPanel, disable=!isStep
-			SetVariable setvarMaxGap_g3, win=TracerPanel, disable=!isStep
-			CheckBox checkGaps_g3, win=TracerPanel, disable=isStep
-			CheckBox checkStep_g3, win=TracerPanel, value=isStep
-			CheckBox checkXscan_g3, win=TracerPanel, value=!isStep
+		case "chkXscan_g3":
+		case "chkStep_g3":
+			// enable or disable controls in group 3 depending on which algorithm CheckBox is selected
+			SetVariable svJump_g3, win=TracerPanel, disable=isStep
+			SetVariable svRange_g3, win=TracerPanel, disable=isStep
+			SetVariable svStepLen_g3, win=TracerPanel, disable=!isStep
+			SetVariable svAngle_g3, win=TracerPanel, disable=!isStep
+			SetVariable svMaxGap_g3, win=TracerPanel, disable=!isStep
+			CheckBox chkGaps_g3, win=TracerPanel, disable=isStep
+			CheckBox chkStep_g3, win=TracerPanel, value=isStep
+			CheckBox chkXscan_g3, win=TracerPanel, value=!isStep
 			break
 	endswitch
 	return 0
@@ -783,7 +767,7 @@ end
 
 // control panel units:
 // res=72: pixels or points
-// res=96: pixels
+// res=96 or 84: pixels
 // res>96: points
 static function cpu2pixels(variable cpu)
 	return ScreenResolution > 96 ? cpu * ScreenResolution / 72 : cpu
@@ -792,21 +776,6 @@ end
 static function pixels2cpu(variable pixels)
 	return ScreenResolution > 96 ? pixels * 72 / ScreenResolution : pixels
 end
-
-static function points2cpu(variable points)
-	if (screenresolution == 96)
-		return points * 96 / 72 // cpu is pixels
-	endif
-	return points
-end
-
-static function cpu2points(variable cpu)
-	if (screenresolution == 96)
-		return cpu * 72 / 96 // cpu is pixels
-	endif
-	return cpu
-end
-
 
 // rebuild graph without changing image
 // allows switch between log and normal axes
@@ -821,14 +790,14 @@ static function RebuildGraph()
 	
 	DFREF dfr = root:Packages:Tracer
 	string strImage = StringFromList (0, ImageNameList("TracerGraph", ";"))
-	wave /Z w_image = ImageNameToWaveRef("TracerGraph", strImage)
+	wave/Z w_image = ImageNameToWaveRef("TracerGraph", strImage)
 	if (WaveExists(w_image)==0)
 		return 0
 	endif
 	
 // save cursor positions and make sure they end up on the same pixels
-	Make /free/N=6 csrP=NaN, csrQ=NaN
-	Make /free/T csr={"A","B","C","D","E","F"}
+	Make/free/N=6 csrP=NaN, csrQ=NaN
+	Make/free/T csr={"A","B","C","D","E","F"}
 	int i
 	for(i=0;i<6;i++)
 		if (cmpstr(StringByKey("TNAME", CsrInfo($csr[i])), strImage) == 0) // cursor is on image
@@ -837,12 +806,13 @@ static function RebuildGraph()
 		endif
 	endfor
 		
-	RemoveImage /W=tracergraph $strImage
+	RemoveImage/W=tracergraph $strImage
 	string ImageNote = note(W_Image)
 	variable Xhigh, Xlow, Yhigh, Ylow
 	
-	if (s.LogX.value)
-		Make /O/N=(DimSize(w_image,0)+1) dfr:TracerLogX /wave=TracerLogX
+	if (s.LogX.value) // horizontal axis is logarithmic
+		// figure out the X values at pixel edges 
+		Make/O/N=(s.imgsize.h+1) dfr:TracerLogX /wave=TracerLogX
 		Xhigh = NumberByKey("Xhigh", ImageNote)
 		Xhigh = (numtype(Xhigh) == 2) ? 100 : Xhigh
 		Xlow = NumberByKey("Xlow", ImageNote)
@@ -850,7 +820,7 @@ static function RebuildGraph()
 		TracerLogX = alog(log(Xlow) + (p+0.5)/DimSize(TracerLogX,0)*(log(Xhigh)-log(Xlow)))
 	endif
 	if (s.LogY.value)
-		Make /O/N=(DimSize(w_image,1) + 1) dfr:TracerLogY /wave=TracerLogY
+		Make/O/N=(s.imgsize.v + 1) dfr:TracerLogY /wave=TracerLogY
 		Yhigh = NumberByKey("Yhigh", ImageNote)
 		Yhigh = (numtype(Yhigh) == 2) ? 1 : Yhigh
 		Ylow = NumberByKey("Ylow", ImageNote)
@@ -859,26 +829,26 @@ static function RebuildGraph()
 	endif
 	
 	// need to specify this for Igor 7
-	ModifyGraph /W=TracerGraph width=0
+	ModifyGraph/W=TracerGraph width=0
 	
-	AppendImage /W=TracerGraph w_image vs {dfr:$SelectString(s.LogX.value, "*", "TracerLogX"),dfr:$SelectString(s.LogY.value, "*", "TracerLogY")}
+	AppendImage/W=TracerGraph w_image vs {dfr:$SelectString(s.LogX.value, "*", "TracerLogX"),dfr:$SelectString(s.LogY.value, "*", "TracerLogY")}
 	if ((s.LogX.value && TracerLogX[0]>TracerLogX[1]) || (s.LogX.value==0 && DimDelta(w_image, 0) < 0))
 		SetAxis/A/R bottom
 	endif
 	if ((s.LogY.value && TracerLogY[1]>TracerLogY[0]) || (s.LogY.value==0 && DimDelta(w_image, 1) > 0))
 		SetAxis/A/R left
 	endif
-	ModifyGraph /W=TracerGraph log(left)=s.LogY.value, log(bottom)=s.LogX.value
+	ModifyGraph/W=TracerGraph log(left)=s.LogY.value, log(bottom)=s.LogX.value
 		
 	if (s.LogX.value==0 && s.LogY.value==0)
-		ModifyGraph /W=TracerGraph width={Plan, abs(DimDelta(w_image, 1 )/ DimDelta(w_image, 0)) ,bottom,left}
+		ModifyGraph/W=TracerGraph width={Plan, abs(DimDelta(w_image, 1 )/ DimDelta(w_image, 0)) ,bottom,left}
 		DoUpdate
 	endif
-	ModifyGraph /W=TracerGraph width=0
+	ModifyGraph/W=TracerGraph width=0
 	
 	for(i=0;i<6;i++)
 		if (numtype(csrp[i]) == 0) // cursor was on image
-			Cursor /I/W=TracerGraph/P $csr[i] $strImage csrp[i], csrq[i]
+			Cursor/I/W=TracerGraph/P $csr[i] $strImage csrp[i], csrq[i]
 		endif
 	endfor
 	DoUpdate
@@ -893,14 +863,17 @@ end
 
 static function tracerSetVar(STRUCT WMSetVariableAction &s)
 	if (s.eventCode == 8)
+		if (CheckUpdated(s.win, 1))
+			return 0
+		endif
 		SetVariable $s.ctrlName, win=$s.win, value=_STR:CleanupName(s.sval, 0)
 	endif
 	return 0
 end
 
 static function EditTrace(int start)
-	GraphNormal /W=TracerGraph
-	ControlInfo /W=TracerPanel StopEditTrace
+	GraphNormal/W=TracerGraph
+	ControlInfo/W=TracerPanel StopEditTrace
 	if(v_flag == 1)
 		Button StopEditTrace, win=TracerGraph#TracerPanel, fColor=(0,0,0), title="Edit trace", Rename=btnStartEditTrace_g4
 	endif
@@ -917,32 +890,36 @@ static function EditTrace(int start)
 	if (V_flag)
 		return 0
 	endif
-	GraphWaveEdit /W=TracerGraph/M $traceName
+	GraphWaveEdit/W=TracerGraph/M $traceName
 	Button btnStartEditTrace_g4, win=TracerGraph#TracerPanel, fcolor=(65535,0,0), title="Stop edit", Rename=StopEditTrace
 	return 1
 end
 
 static function tracerPopMenu(STRUCT WMPopupAction &s)
+	
 	if (s.eventCode != 2)
+		return 0
+	endif
+	
+	if (CheckUpdated(s.win, 0))
 		return 0
 	endif
 	
 	strswitch(s.ctrlName)
 		case "popImage_g0":
 	
-			CheckBox checkLogX_g1 win=tracerPanel, value=0
-			CheckBox checkLogY_g1 win=tracerPanel, value=0
-//			CheckBox checkXY_g2 win=tracerPanel, value=0, disable=0
-			wave /Z w_img = $s.popStr
+			CheckBox chkLogX_g1 win=tracerPanel, value=0
+			CheckBox chkLogY_g1 win=tracerPanel, value=0
+			wave/Z w_img = $s.popStr
 			if (WaveExists(w_img))
 				PlotImage(w_img)
 			endif
 			break
 		
 		case "popTraceRGB_g3":
-			ControlInfo /W=TracerGraph#TracerPanel $s.ctrlName
-			Make /free wRGB = {V_Red,V_Green,V_Blue}
-			wave /Z w_img = GetImageRef()
+			ControlInfo/W=TracerGraph#TracerPanel $s.ctrlName
+			Make/free wRGB = {V_Red,V_Green,V_Blue}
+			wave/Z w_img = GetImageRef()
 			if (WaveExists(w_img) && (DimSize(w_img,2)==0))
 				wRGB = (V_Red+V_Green+V_Blue)/3
 				PopupMenu $s.ctrlName, win=$s.win, popColor=(wRGB[0],wRGB[1],wRGB[2])
@@ -950,7 +927,7 @@ static function tracerPopMenu(STRUCT WMPopupAction &s)
 			// add selected color to the recent selections list for the image editing color pickers
 			int i
 			for (i=1;i<4;i++)
-				ControlInfo /W=TracerGraph#TracerPanel $"popRGB"+num2str(i)+"_g4"
+				ControlInfo/W=TracerGraph#TracerPanel $"popRGB"+num2str(i)+"_g4"
 				PopupMenu $"popRGB"+num2str(i)+"_g4", win=$s.win, popColor=(wRGB[0],wRGB[1],wRGB[2])
 				PopupMenu $"popRGB"+num2str(i)+"_g4", win=$s.win, popColor=(V_Red,V_Green,V_Blue)
 			endfor
@@ -964,9 +941,6 @@ static function tracerPopMenu(STRUCT WMPopupAction &s)
 	endswitch
 	
 	return 0
-		
-	
-	
 end
 
 // make sure A and B cursors are in place
@@ -981,8 +955,8 @@ static function checkCursors(STRUCT PanelStatusStructure &s)
 		
 	if (s.xscan.value && pcsr(A, "TracerGraph") > pcsr(B, "TracerGraph"))
 		int tempP = pcsr(A, "TracerGraph"), tempQ=qcsr(A, "TracerGraph")
-		Cursor /I/P/W=TracerGraph A $CsrWave(A, "TracerGraph") pcsr(B, "TracerGraph"), qcsr(B, "TracerGraph")
-		Cursor /I/P/W=TracerGraph B $CsrWave(A, "TracerGraph") tempP, tempQ
+		Cursor/I/P/W=TracerGraph A $CsrWave(A, "TracerGraph") pcsr(B, "TracerGraph"), qcsr(B, "TracerGraph")
+		Cursor/I/P/W=TracerGraph B $CsrWave(A, "TracerGraph") tempP, tempQ
 	endif
 	return 1
 end
@@ -996,7 +970,7 @@ static function ExtractTrace(STRUCT PanelStatusStructure &s)
 	
 	variable failX = NaN, lastY = NaN
 	variable Yoffset = DimOffset(s.img, 1), Ydelta = DimDelta(s.img, 1)
-	int lastP = NaN, lastQ = NaN//, qMax = DimSize(s.img,1) - 1
+	int lastP = NaN, lastQ = NaN
 	int i, j, gap, minus, plus // j is DataWave point number, i is image row
 	int startP = pcsr(A, "TracerGraph"), endP = pcsr(B, "TracerGraph")
 	int startQ = qcsr(A, "TracerGraph"), endQ = qcsr(B, "TracerGraph")
@@ -1008,36 +982,36 @@ static function ExtractTrace(STRUCT PanelStatusStructure &s)
 	
 	if (CheckName(s.tracename.sval, 1))
 		DoAlert 1, s.tracename.sval + " already exists. Overwrite?"
-		if (V_Flag==2)
+		if (V_Flag == 2)
 			return 0
 		endif
 	endif
-	Make /O/N=(numPoints) $s.tracename.sval=NaN
+	Make/O/N=(numPoints) $s.tracename.sval=NaN
 	wave dataWave = $s.tracename.sval
 	Print "Created wave " + NameOfWave(dataWave)
 	
-	RemoveFromGraph /Z/W=TracerGraph $NameOfWave(dataWave) // just in case
+	RemoveFromGraph/Z/W=TracerGraph $NameOfWave(dataWave) // just in case
 	if (s.XY.value)
-		Make /O/N=(numPoints) $s.tracename.sval + "_X" = NaN
+		Make/O/N=(numPoints) $s.tracename.sval + "_X" = NaN
 		wave dataXwave = $s.tracename.sval + "_X"
 		dataXwave = s.logX.value ? s.wlogX[startP + p + 0.5] : IndexToScale(s.img, startP + p, 0)
-		AppendToGraph /W=TracerGraph dataWave vs dataXwave
+		AppendToGraph/W=TracerGraph dataWave vs dataXwave
 	else
-		SetScale /I x, hcsr(A, "TracerGraph"), hcsr(B, "TracerGraph"), dataWave
-		AppendToGraph /W=TracerGraph dataWave
+		SetScale/I x, hcsr(A, "TracerGraph"), hcsr(B, "TracerGraph"), dataWave
+		AppendToGraph/W=TracerGraph dataWave
 	endif
 	
 	
 	STRUCT RGBcolor RGB
 	RGB = s.trace.rgb
 	contrastingColor(RGB)
-	ModifyGraph /W=TracerGraph rgb($NameOfWave(dataWave))=(rgb.red,rgb.green,rgb.blue)
-	ModifyGraph /W=TracerGraph mode($NameOfWave(dataWave))=0, lsize($NameOfWave(dataWave))=2
+	ModifyGraph/W=TracerGraph rgb($NameOfWave(dataWave))=(rgb.red,rgb.green,rgb.blue)
+	ModifyGraph/W=TracerGraph mode($NameOfWave(dataWave))=0, lsize($NameOfWave(dataWave))=2
 	
 		
 	for(i=startP,j=0;i<=endP;i++,j++) // loop over rows of image / points of DataWave
 		gap = 0
-		if ((RGBgood(i, qHigh, s)==0)) // non-trace pixel
+		if ((RGBgood(i, qHigh, s) == 0)) // non-trace pixel
 			// expand to find a trace pixel
 			// do this efficiently by minimizing calls to RGBgood
 			plus = 1; minus = 1
@@ -1045,7 +1019,7 @@ static function ExtractTrace(STRUCT PanelStatusStructure &s)
 				plus = plus && qHigh<(s.imgsize.v - 1)
 				if (plus)
 					qHigh++
-					if(RGBgood(i, qHigh, s))
+					if (RGBgood(i, qHigh, s))
 						qLow = qHigh
 						break
 					endif
@@ -1053,7 +1027,7 @@ static function ExtractTrace(STRUCT PanelStatusStructure &s)
 				minus = qLow>0
 				if (minus)
 					qLow--
-					if(RGBgood(i, qLow, s))
+					if (RGBgood(i, qLow, s))
 						qHigh = qLow
 						break
 					endif
@@ -1148,8 +1122,8 @@ static function ExtractTrace(STRUCT PanelStatusStructure &s)
 		sprintf cmd, "%s\r\rDelete %s?", cmd, NameOfWave(dataWave)
 		DoAlert 1, cmd
 		if (V_flag==1)
-			RemoveFromGraph /W=TracerGraph $NameOfWave(dataWave)
-			KillWaves /Z dataWave
+			RemoveFromGraph/W=TracerGraph $NameOfWave(dataWave)
+			KillWaves/Z dataWave
 			Print "Deleted wave " + s.tracename.sval
 		endif
 	endif
@@ -1186,9 +1160,9 @@ static function ExtractTraceEqualStep(STRUCT PanelStatusStructure &s)
 			
 	wave circle = CirclePointWave(0, 0, radius)
 	#ifdef dev
-	Duplicate /O circle, newcircle
+	Duplicate/O circle, newcircle
 	#else
-	Duplicate /free circle, newcircle
+	Duplicate/free circle, newcircle
 	#endif
 
 	int NumPntsCircle = DimSize(circle, 0)
@@ -1196,10 +1170,10 @@ static function ExtractTraceEqualStep(STRUCT PanelStatusStructure &s)
 	numPntsArc += 1 - mod(numPntsArc, 2)
 	int centrePnt = (numPntsArc-1)/2
 	// wCircleIndex will contain the p values from wCircle that define an arc
-	Make /O/free/N=(numPntsArc) wCircleIndex
+	Make/O/free/N=(numPntsArc) wCircleIndex
 	
-	Make /free/N=(1,2) pntPQ = {{pcsr(A, "TracerGraph")},{qcsr(A, "TracerGraph")}}
-	Make /free/N=(1,2) endPQ = {{pcsr(B, "TracerGraph")},{qcsr(B, "TracerGraph")}}
+	Make/free/N=(1,2) pntPQ = {{pcsr(A, "TracerGraph")},{qcsr(A, "TracerGraph")}}
+	Make/free/N=(1,2) endPQ = {{pcsr(B, "TracerGraph")},{qcsr(B, "TracerGraph")}}
 	
 	variable direction // atan2(deltaY, deltaX), [-pi,pi]
 	
@@ -1208,22 +1182,26 @@ static function ExtractTraceEqualStep(STRUCT PanelStatusStructure &s)
 	
 	GetWindow TracerGraph wsizeRM
 	int top, left
-	top = (v_top+v_bottom)/2
-	left = (v_left+v_right)/2
-	KillWindow /Z tpaneltemp
-	NewPanel /W=(left,top,left+150,top+100)/K=2/N=tpaneltemp as "Click to continue"
-	SetDrawEnv /W=tpaneltemp textrgb= (65535,0,0), textyjust= 2
-	DrawText /W=tpaneltemp 30,10,"click on the graph\rwindow to define\rthe start direction"
-	Button btnCancel win=tpaneltemp, pos={45,60},size={60,20},Proc=tracer#tracerButtons,title="Cancel"
+	top = (v_top + v_bottom) / 2
+	left = (v_left + v_right) / 2
+	KillWindow/Z tpaneltemp
+	NewPanel/W=(left,top,left+150,top+100)/K=2/N=tpaneltemp as "Click to continue"
+	SetDrawEnv/W=tpaneltemp textrgb=(65535,0,0), textyjust=2
+	DrawText/W=tpaneltemp 30,10,"click on the graph\rwindow to define\rthe start direction"
+	Button btnCancel win=tpaneltemp, pos={45,60}, size={60,20}, proc=tracer#tracerButtons, title="Cancel"
 	PauseForUser tpaneltemp, TracerGraph
 	
+	// On mouseup hookTracer puts mouse coordinates structure in global 
+	// string smouse and ends PauseForUser. Cancel button clears string 
+	// and ends PauseForUser.
+	
 	SVAR smouse = root:Packages:Tracer:smouse
-	if (strlen(smouse)==0)
+	if (strlen(smouse) == 0)
 		return 0
 	endif
 	
 	STRUCT point mouse
-	StructGet /S mouse, smouse
+	StructGet/S mouse, smouse
 	STRUCT point pixel
 	getImagePixel(pixel, mouse, s)
 	// get point index of circle that defines our current direction of travel
@@ -1241,19 +1219,19 @@ static function ExtractTraceEqualStep(STRUCT PanelStatusStructure &s)
 		endif
 	endif
 	
-	Make /O/N=(1) $s.tracename.sval = vcsr(A)
+	Make/O/N=(1) $s.tracename.sval = vcsr(A)
 	wave dataWave = $s.tracename.sval
-	Make /O/N=(1) $s.tracename.sval + "_X" = hcsr(A)
+	Make/O/N=(1) $s.tracename.sval + "_X" = hcsr(A)
 	wave dataXwave = $s.tracename.sval + "_X"
 	printf "Created waves %s, %s\r" NameOfWave(dataWave), NameOfWave(dataXwave)
 	
-	RemoveFromGraph /Z/W=TracerGraph $NameOfWave(dataWave) // just in case
-	AppendToGraph /W=TracerGraph dataWave vs dataXwave
+	RemoveFromGraph/Z/W=TracerGraph $NameOfWave(dataWave) // just in case
+	AppendToGraph/W=TracerGraph dataWave vs dataXwave
 	STRUCT RGBcolor RGB
 	RGB = s.trace.rgb
 	contrastingColor(RGB)
-	ModifyGraph /W=TracerGraph rgb($NameOfWave(dataWave))=(rgb.red,rgb.green,rgb.blue)
-	ModifyGraph /W=TracerGraph mode($NameOfWave(dataWave))=0, lsize($NameOfWave(dataWave))=2
+	ModifyGraph/W=TracerGraph rgb($NameOfWave(dataWave))=(rgb.red,rgb.green,rgb.blue)
+	ModifyGraph/W=TracerGraph mode($NameOfWave(dataWave))=0, lsize($NameOfWave(dataWave))=2
 		
 	int i, j, pHigh, pLow, pMid, plus, minus, gap, resetwaves, fail, keys
 	
@@ -1274,7 +1252,7 @@ static function ExtractTraceEqualStep(STRUCT PanelStatusStructure &s)
 			break
 		endif
 					
-		// if end point within circle, join a line to end and stop
+		// if end point within circle, add end point and stop
 		if (sqrt((pntPQ[0][0]-endPQ[0][0])^2 + (pntPQ[0][1]-endPQ[0][1])^2) < radius)
 			datawave[j]  = {s.logY.value ? s.wlogY[endPQ[0][1] + 0.5] : IndexToScale(s.img,endPQ[0][1],1)}
 			dataXwave[j] = {s.logX.value ? s.wlogX[endPQ[0][0] + 0.5] : IndexToScale(s.img,endPQ[0][0],0)}
@@ -1302,7 +1280,7 @@ static function ExtractTraceEqualStep(STRUCT PanelStatusStructure &s)
 				plus = plus && pHigh<(numPntsArc-1)
 				if (plus)
 					pHigh++
-					if(RGBgood(newcircle[wCircleIndex[pHigh]][0], newcircle[wCircleIndex[pHigh]][1], s))
+					if (RGBgood(newcircle[wCircleIndex[pHigh]][0], newcircle[wCircleIndex[pHigh]][1], s))
 						pLow = pHigh
 						break
 					endif
@@ -1310,7 +1288,7 @@ static function ExtractTraceEqualStep(STRUCT PanelStatusStructure &s)
 				minus = pLow > 0
 				if (minus)
 					pLow--
-					if(RGBgood(newcircle[wCircleIndex[pLow]][0], newcircle[wCircleIndex[pLow]][1], s))
+					if (RGBgood(newcircle[wCircleIndex[pLow]][0], newcircle[wCircleIndex[pLow]][1], s))
 						pHigh = pLow
 						break
 					endif
@@ -1364,15 +1342,15 @@ static function ExtractTraceEqualStep(STRUCT PanelStatusStructure &s)
 				// reset circle and arc waves
 				wave circle = CirclePointWave(0, 0, radius)
 				#ifdef dev
-				Duplicate /O circle, newcircle
+				Duplicate/O circle, newcircle
 				#else
-				Duplicate /free circle, newcircle
+				Duplicate/free circle, newcircle
 				#endif
 				NumPntsCircle = DimSize(circle, 0)
 				numPntsArc =  NumPntsCircle * angle / (2*pi)
 				numPntsArc += 1 - mod(numPntsArc, 2)
 				centrePnt = (numPntsArc-1)/2
-				Make /O/free/N=(numPntsArc) wCircleIndex
+				Make/O/free/N=(numPntsArc) wCircleIndex
 				pCircle = GetIndexOfClosestVector(circle, direction)
 				resetwaves = 0
 			endif
@@ -1388,16 +1366,16 @@ static function ExtractTraceEqualStep(STRUCT PanelStatusStructure &s)
 			pCircle = GetIndexOfClosestVector(circle, direction)
 			
 			#ifdef dev
-			Duplicate /O circle, newcircle
+			Duplicate/O circle, newcircle
 			#else
-			Duplicate /free circle, newcircle
+			Duplicate/free circle, newcircle
 			#endif
 
 			NumPntsCircle = DimSize(circle, 0)
 			numPntsArc =  NumPntsCircle * angle / (2*pi)
 			numPntsArc += 1 - mod(numPntsArc, 2)
 			centrePnt = (numPntsArc-1)/2
-			Make /O/free/N=(numPntsArc) wCircleIndex
+			Make/O/free/N=(numPntsArc) wCircleIndex
 			
 		endif
 						
@@ -1446,8 +1424,8 @@ static function ExtractTraceEqualStep(STRUCT PanelStatusStructure &s)
 		sprintf cmd, "%s\r\rDelete %s?", cmd, NameOfWave(dataWave)
 		DoAlert 1, cmd
 		if (V_flag == 1)
-			RemoveFromGraph /W=TracerGraph $NameOfWave(dataWave)
-			KillWaves /Z dataWave
+			RemoveFromGraph/W=TracerGraph $NameOfWave(dataWave)
+			KillWaves/Z dataWave
 			Print "Deleted wave " + s.tracename.sval
 		endif
 	endif
@@ -1455,9 +1433,9 @@ end
 
 // finds the point number of 2D wave circle closest to the vector defined by direction = atan2(v, h)
 static function GetIndexOfClosestVector(wave wVectors, variable direction)
-	Make /free/N=(DimSize(wVectors, 0)) wAngles = abs(atan2(wVectors[p][1], wVectors[p][0]) - direction)
+	Make/free/N=(DimSize(wVectors, 0)) wAngles = abs(atan2(wVectors[p][1], wVectors[p][0]) - direction)
 	wAngles = wAngles > pi ? 2 * pi - wAngles : wAngles
-	WaveStats /M=1/Q wAngles
+	WaveStats/M=1/Q wAngles
 	return v_minloc
 end
 
@@ -1465,8 +1443,8 @@ end
 //	wave pixels = LinePointWave(x0, y0, x1, y1)
 //	int length = DimSize(pixels,0)
 //
-//	Make /N=(length)/free wHits = radius + 2 - p // linear distance weighting
-////	make /N=(length)/free wHits = 1
+//	Make/N=(length)/free wHits = radius + 2 - p // linear distance weighting
+////	make/N=(length)/free wHits = 1
 //	int pLim = DimSize(wImg, 0) // this could be pre-calculated and stored in s
 //	int qLim = DimSize(wImg, 1)
 //	int total = sum(wHits)
@@ -1481,8 +1459,8 @@ end
 //	wave pixels = LinePointWave(x0, y0, x1, y1)
 //	int length = dimsize(pixels,0)
 //
-////	make /N=(length)/free wHits = 11-p
-//	make /N=(length)/free wHits = 11-p
+////	make/N=(length)/free wHits = 11-p
+//	make/N=(length)/free wHits = 11-p
 //	int pLim = dimsize(wImg, 0) // this could be pre-calculated and stored in s
 //	int qLim = dimsize(wImg, 1)
 //	int total = sum(wHits)
@@ -1543,20 +1521,19 @@ end
 static function writePixelRGB(STRUCT RGBcolor &RGB, wave w_img, STRUCT point &pixel, STRUCT PanelStatusStructure &s, variable brush)
 	DFREF dfr = root:Packages:Tracer
 	
-	int rows = DimSize(w_img,0), columns = DimSize(w_img,1)
-	if (pixel.h<0 || pixel.v<0 || pixel.h>=rows || pixel.v>=columns)
+	if (pixel.h<0 || pixel.v<0 || pixel.h>=s.imgsize.h || pixel.v>=s.imgsize.v)
 		return 0
 	endif
 	int pmin = pixel.h - brush/2, qmin = pixel.v - brush/2
 	int pmax = pixel.h + brush/2, qmax = pixel.v + brush/2
-	pmin = max(0, min(pmin, rows-1))
-	pmax = max(0, min(pmax, rows-1))
-	qmin = max(0, min(qmin, columns-1))
-	qmax = max(0, min(qmax, columns-1))
+	pmin = max(0, min(pmin, s.imgsize.h-1))
+	pmax = max(0, min(pmax, s.imgsize.h-1))
+	qmin = max(0, min(qmin, s.imgsize.v-1))
+	qmax = max(0, min(qmax, s.imgsize.v-1))
 	
 	// figure out colour depth
 	// work with 24 or 48 bit images (8 or 16 bits per pixel)
-	Make /free w={RGB.red,RGB.green,RGB.blue}
+	Make/free w={RGB.red,RGB.green,RGB.blue}
 	w /= WaveType(w_img)&8 ? 257 : 1
 	
 	if (DimSize(w_img,2))
@@ -1572,7 +1549,7 @@ end
 static function brushStroke(wave w_img, STRUCT PanelStatusStructure &s)
 	DFREF dfr = root:Packages:Tracer
 	variable hpoints, vpoints
-	GetAxis /W=TracerGraph/Q bottom
+	GetAxis/W=TracerGraph/Q bottom
 	int pmin, pmax
 	if (s.logX.value)
 		wave TracerLogX = dfr:TracerLogX
@@ -1584,7 +1561,7 @@ static function brushStroke(wave w_img, STRUCT PanelStatusStructure &s)
 	else
 		hpoints = abs(scaleToIndex(w_img, v_max, 0) - scaleToIndex(w_img, v_min, 0))
 	endif
-	GetAxis /W=TracerGraph/Q left
+	GetAxis/W=TracerGraph/Q left
 	if (s.logY.value)
 		wave TracerLogY = dfr:TracerLogY
 		pmax = BinarySearch(TracerLogY, v_max)
@@ -1618,13 +1595,11 @@ static function hookEditImg(STRUCT WMWinHookStruct &s)
 ////		s.cursorCode = 19
 //	endif
 	
-	
 	if (s.eventMod & 8) // cmd/ctrl
 		s.doSetCursor = 1
 		s.cursorCode = 20
 	endif
 		
-//	int insert = (s.eventMod == 9) // - (s.eventMod == 5) // 1 for trace, -1 for bg
 	if (! (s.eventCode==3 && s.eventMod==9) ) // mousedown, ctrl
 		return 0
 	endif
@@ -1656,7 +1631,7 @@ static function hookEditImg(STRUCT WMWinHookStruct &s)
 	int horiz = 0, vert = 0
 	for (;ctrl;)
 		keys = GetKeyState(0)
-		GetMouse /W=$s.WinName
+		GetMouse/W=$s.WinName
 		mousebutton = V_flag & 1
 		if (keys & 4) // shift
 			if ((horiz + vert) == 0)
@@ -1729,15 +1704,15 @@ static function hookTracer(STRUCT WMWinHookStruct &s)
 		if (strlen(s_value))
 			return 0
 		endif
-		Make /D/free/N=3 wH, wV // free waves to hold axis minimum, maximum, and axis value for mouse location
-		GetAxis /W=$s.WinName/Q bottom
+		Make/D/free/N=3 wH, wV // free waves to hold axis minimum, maximum, and axis value for mouse location
+		GetAxis/W=$s.WinName/Q bottom
 		if (v_flag)
 			return 0
 		endif
 		int logH = NumberByKey("log(x)", AxisInfo(s.WinName, "bottom"),"=")
 		wH = {v_min, v_max, AxisValFromPixel(s.WinName, "bottom", s.mouseLoc.h)}
 		wH = logH ? log(wH) : wH
-		GetAxis /W=$s.WinName/Q left
+		GetAxis/W=$s.WinName/Q left
 		if (v_flag)
 			return 0
 		endif
@@ -1752,14 +1727,14 @@ static function hookTracer(STRUCT WMWinHookStruct &s)
 		wH = logH ? alog(wH) : WH
 		wV = logV ? alog(wV) : wV
 		if (wH[1] > wH[0])
-			SetAxis /W=$s.WinName bottom, wH[0], wH[1]
+			SetAxis/W=$s.WinName bottom, wH[0], wH[1]
 		else
-			SetAxis /R/W=$s.WinName bottom, wH[0], wH[1]
+			SetAxis/R/W=$s.WinName bottom, wH[0], wH[1]
 		endif
 		if (wV[1] > wV[0])
-			SetAxis /W=$s.WinName left, wV[0], wV[1]
+			SetAxis/W=$s.WinName left, wV[0], wV[1]
 		else
-			SetAxis /R/W=$s.WinName left, wV[0], wV[1]
+			SetAxis/R/W=$s.WinName left, wV[0], wV[1]
 		endif
 		return 0
 	endif
@@ -1781,7 +1756,7 @@ static function hookTracer(STRUCT WMWinHookStruct &s)
 	endif
 	
 	if (s.eventCode == 7) // cursor moved
-		wave /Z w_img=GetImageRef()
+		wave/Z w_img=GetImageRef()
 		if (WaveExists(w_img)==0)
 			return 0
 		endif
@@ -1791,7 +1766,7 @@ static function hookTracer(STRUCT WMWinHookStruct &s)
 			// update cursor colour
 			getPixelRGB(RGB, w_img, pcsr($s.cursorName, "TracerGraph"), qcsr($s.cursorName, "TracerGraph"))
 			contrastingColor(RGB)
-			Cursor /M/C=(RGB.red,RGB.green,RGB.blue)/W=TracerGraph $s.cursorName
+			Cursor/M/C=(RGB.red,RGB.green,RGB.blue)/W=TracerGraph $s.cursorName
 			
 			// if rgb good, change appearance of popupmenu? // make a quicker 'PixelGood' function
 						
@@ -1800,15 +1775,15 @@ static function hookTracer(STRUCT WMWinHookStruct &s)
 	
 	if (s.eventcode == 5 && WinType("tpaneltemp")==7) // mouseup
 		DFREF dfr = root:Packages:Tracer
-		string /G dfr:smouse = ""
-		StructPut /S s.mouseloc dfr:smouse
-		variable /G dfr:mouseh = s.mouseloc.h
-		variable /G dfr:mousev = s.mouseloc.v
-		KillWindow /Z tpaneltemp
+		string/G dfr:smouse = ""
+		StructPut/S s.mouseloc dfr:smouse
+		variable/G dfr:mouseh = s.mouseloc.h
+		variable/G dfr:mousev = s.mouseloc.v
+		KillWindow/Z tpaneltemp
 	endif
 	
 	if (s.eventCode == 2) // kill
-		KillDataFolder /Z root:packages:tracer:
+		KillDataFolder/Z root:packages:tracer:
 	endif
 
 	return 0
@@ -1816,12 +1791,12 @@ end
 
 static function ImportClip()
 		
-	LoadPICT /Q/Z "Clipboard"
+	LoadPICT/Q/Z "Clipboard"
 	if(v_flag == 0)
 		return 0
 	endif
 	
-	LoadPICT /Q/O "Clipboard", TracerImageTemp
+	LoadPICT/Q/O "Clipboard", TracerImageTemp
 	if (V_flag == 0)
 		return 0
 	endif
@@ -1833,7 +1808,7 @@ static function ImportClip()
 	int heightPix = NumberByKey("HEIGHT", S_info)
 	int widthPix = NumberByKey("WIDTH", S_info)
 	
-	wave /Z w_img = $""
+	wave/Z w_img = $""
 	
 	string ext = ""
 	strswitch (strType) // this is redundant because the the OS puts a png in the clip for all of these image types
@@ -1848,10 +1823,10 @@ static function ImportClip()
 			break
 	endswitch
 	
-	NewPath /O/Q/Z TracerPathTemp, SpecialDirPath("Temporary", 0, 0, 0)
+	NewPath/O/Q/Z TracerPathTemp, SpecialDirPath("Temporary", 0, 0, 0)
 	
 	if (strlen(ext))
-		SavePICT /Z/O/PICT=$strPict/P=TracerPathTemp
+		SavePICT/Z/O/PICT=$strPict/P=TracerPathTemp
 		
 		#ifdef dev
 		Print "found " + ext + " in clipboard"
@@ -1864,9 +1839,9 @@ static function ImportClip()
 		variable scale = gheight / height
 		variable gwidth = scale * width
 		
-		KillWindow /Z TracerGraphTemp
-		Display /W=(0, 0, gwidth, gheight)/N=TracerGraphTemp/hide=1
-		DrawPICT /W=TracerGraphTemp 0, 0, scale, scale, $strPict
+		KillWindow/Z TracerGraphTemp
+		Display/W=(0, 0, gwidth, gheight)/N=TracerGraphTemp/hide=1
+		DrawPICT/W=TracerGraphTemp 0, 0, scale, scale, $strPict
 		
 		// export the graph window as png
 		ext = ".png"
@@ -1880,23 +1855,23 @@ static function ImportClip()
 	endif
 
 	if (v_flag == 0) // savePICT success
-		ImageLoad /Q/P=TracerPathTemp/N=TracerImage strPict+ext
-		wave /Z w_img = $StringFromList(0, S_waveNames)
+		ImageLoad/Q/P=TracerPathTemp/N=TracerImage strPict+ext
+		wave/Z w_img = $StringFromList(0, S_waveNames)
 		#ifdef dev
 		Print "loaded temporary file "	+ S_path + S_fileName
 		#endif
 	endif
 	
 	// clean up
-	KillWindow /Z TracerGraphTemp
-	KillPICTs /Z $strPict
-	KillPath /Z TracerPathTemp
+	KillWindow/Z TracerGraphTemp
+	KillPICTs/Z $strPict
+	KillPath/Z TracerPathTemp
 
 	if (WaveExists(w_img))
 		note w_img "TracerImage=1;"
 		PopupMenu popImage_g0, win=TracerPanel, popmatch=StringFromList(0, S_waveNames)
-		CheckBox checkLogX_g1 win=tracerPanel, value=0
-		CheckBox checkLogY_g1 win=tracerPanel, value=0
+		CheckBox chkLogX_g1 win=tracerPanel, value=0
+		CheckBox chkLogY_g1 win=tracerPanel, value=0
 		PlotImage(w_img)
 	endif
 
@@ -1983,7 +1958,7 @@ endstructure
 // input is 16 bit sRGB
 static function RGB2XYZ(STRUCT RGBcolor &rgb, STRUCT XYZcolor &xyz)
 	// X, Y and Z output refer to a D65/2° standard illuminant.
-	Make /free w={rgb.red, rgb.green, rgb.blue}
+	Make/free w={rgb.red, rgb.green, rgb.blue}
 	w /= 0xFFFF
 	w = w > 0.04045 ? ((w + 0.055) / 1.055)^2.4 : w / 12.92
 	w *= 100
@@ -1994,7 +1969,7 @@ end
 
 static function XYZ2LAB(STRUCT XYZcolor &xyz, STRUCT LABcolor &Lab)
 	// reference values for D65/2° standard illuminant.
-	Make /free w={xyz.X, xyz.Y, xyz.Z}, XYZref={95.047,100,108.883}
+	Make/free w={xyz.X, xyz.Y, xyz.Z}, XYZref={95.047,100,108.883}
 	w /= XYZref
 	w = (w > 0.008856) ? w^(1/3) : 7.787 * w + (16 / 116)
 	Lab.L = (116 * w[1]) - 16
@@ -2005,15 +1980,15 @@ end
 // input is 16 bit sRGB
 static function RGB2LAB(STRUCT RGBcolor &rgb, STRUCT LABcolor &Lab)
 	// X, Y and Z output refer to a D65/2° standard illuminant.
-	Make /free w={rgb.red, rgb.green, rgb.blue}
+	Make/free w={rgb.red, rgb.green, rgb.blue}
 	w /= 0xFFFF
 	w = w > 0.04045 ? ((w + 0.055) / 1.055)^2.4 : w / 12.92
 	w *= 100
-	Make /free/N=3 xyz
+	Make/free/N=3 xyz
 	xyz[0] = w[0] * 0.4124 + w[1] * 0.3576 + w[2] * 0.1805
 	xyz[1] = w[0] * 0.2126 + w[1] * 0.7152 + w[2] * 0.0722
 	xyz[2] = w[0] * 0.0193 + w[1] * 0.1192 + w[2] * 0.9505
-	Make /free XYZref={95.047,100,108.883}
+	Make/free XYZref={95.047,100,108.883}
 	w = xyz / XYZref
 	w = (w > 0.008856) ? w^(1/3) :  7.787 * w + (16 / 116)
 	Lab.L = (116 * w[1]) - 16
@@ -2069,18 +2044,18 @@ end
 
 static function /WAVE getImageRef()
 	string ImageNameString = StringFromList (0, ImageNameList("TracerGraph", ";" ))
-	wave /Z w_img = ImageNameToWaveRef("TracerGraph",ImageNameString)
+	wave/Z w_img = ImageNameToWaveRef("TracerGraph",ImageNameString)
 	return w_img
 end
 
 static function ShowScaleCursors(int start)
 	// make sure we don't already have cursors C-F on graph
 	SetWindow TracerGraph hook(setscaleGUI)=$""
-	KillControl /W=TracerGraph SetVarC; KillControl /W=TracerGraph SetVarD
-	KillControl /W=TracerGraph SetVarE; KillControl /W=TracerGraph SetVarF
-	Cursor /K/W=TracerGraph C; Cursor /K/W=TracerGraph D
-	Cursor /K/W=TracerGraph E; Cursor /K/W=TracerGraph F
-	ControlInfo /W=TracerPanel btnStopScale_g1
+	KillControl/W=TracerGraph svC; KillControl/W=TracerGraph svD
+	KillControl/W=TracerGraph svE; KillControl/W=TracerGraph svF
+	Cursor/K/W=TracerGraph C; Cursor/K/W=TracerGraph D
+	Cursor/K/W=TracerGraph E; Cursor/K/W=TracerGraph F
+	ControlInfo/W=TracerPanel btnStopScale_g1
 	if(v_flag == 1)
 		Button btnStopScale_g1, win=TracerPanel, title="Show", Rename=btnStartScale_g1
 	endif
@@ -2088,31 +2063,31 @@ static function ShowScaleCursors(int start)
 		return 0
 	endif
 	
-	string strImage=StringFromList(0, ImageNameList("TracerGraph", ";"))
-	wave wImage=ImageNameToWaveRef("TracerGraph", strImage)
-	if (WaveExists(wImage)==0)
+	string strImage = StringFromList(0, ImageNameList("TracerGraph", ";"))
+	wave wImage = ImageNameToWaveRef("TracerGraph", strImage)
+	if (WaveExists(wImage) == 0)
 		return 0
 	endif
 	
 	variable hSize=DimSize(wImage, 0), vSize=DimSize(wImage,1)
 	// vertical hairs for X cursors
-	Cursor /N=1/S=2/I/H=2/C=(0,0,65535)/P/W=TracerGraph C $strImage 0.1*hSize, 0.8*vSize
-	Cursor /N=1/S=2/I/H=2/C=(0,0,65535)/P/W=TracerGraph D $strImage 0.9*hSize, 0.8*vSize
+	Cursor/N=1/S=2/I/H=2/C=(0,0,65535)/P/W=TracerGraph C $strImage 0.1*hSize, 0.8*vSize
+	Cursor/N=1/S=2/I/H=2/C=(0,0,65535)/P/W=TracerGraph D $strImage 0.9*hSize, 0.8*vSize
 	// horizontal hairs for Y cursors
-	Cursor /N=1/S=2/I/H=3/C=(0,65535,0)/P/W=TracerGraph E $strImage 0.2*hSize, 0.9*vSize
-	Cursor /N=1/S=2/I/H=3/C=(0,65535,0)/P/W=TracerGraph F $strImage 0.2*hSize, 0.1*vSize
+	Cursor/N=1/S=2/I/H=3/C=(0,65535,0)/P/W=TracerGraph E $strImage 0.2*hSize, 0.9*vSize
+	Cursor/N=1/S=2/I/H=3/C=(0,65535,0)/P/W=TracerGraph F $strImage 0.2*hSize, 0.1*vSize
 	
 	STRUCT Point pt
-	Make /free/T csr={"C","D","E","F"}
+	Make/free/T csr={"C","D","E","F"}
 	int i
 	for(i=0;i<4;i+=1)
-		SetVariable $"SetVar"+csr[i] win=TracerGraph, title="", value=_NUM: i<2 ? hcsr($csr[i]) : vcsr($csr[i])
-		SetVariable $"SetVar"+csr[i] win=TracerGraph, limits={-Inf,Inf,0}, size={40,10}, fsize=14, Proc=Tracer#Rescale
-		SetVariable $"SetVar"+csr[i] win=TracerGraph, valueColor=(0,65535*(i>1),65535*(i<2))
+		SetVariable $"sv"+csr[i] win=TracerGraph, title="", value=_NUM: i<2 ? hcsr($csr[i]) : vcsr($csr[i])
+		SetVariable $"sv"+csr[i] win=TracerGraph, limits={-Inf,Inf,0}, size={40,10}, fsize=14, Proc=Tracer#Rescale
+		SetVariable $"sv"+csr[i] win=TracerGraph, valueColor=(0,65535*(i>1),65535*(i<2))
 	endfor
 	
 	SetWindow TracerGraph hook(setscaleGUI)=Tracer#hookSetScale, hookevents=4
-	Button btnStartScale_g1, win=TracerPanel,title="Hide", Rename=btnStopScale_g1
+	Button btnStartScale_g1, win=TracerPanel, title="Hide", Rename=btnStopScale_g1
 	
 	// enter hookSetScale function with resize event to reposition setvars
 	STRUCT WMWinHookStruct s
@@ -2134,9 +2109,9 @@ static function hookSetScale(STRUCT WMWinHookStruct &s)
 					
 				// keep axis coordinates within bounds of axes
 				variable ptX, ptY
-				GetAxis /Q/W=$s.WinName bottom
+				GetAxis/Q/W=$s.WinName bottom
 				ptX = limit(hcsr($s.cursorName, s.winName), min(V_Min,V_Max), max(V_Min,V_Max))
-				GetAxis /Q/W=$s.WinName left
+				GetAxis/Q/W=$s.WinName left
 				ptY = limit(vcsr($s.cursorName, s.winName), min(V_Min,V_Max), max(V_Min,V_Max))
 			
 				STRUCT Point pt
@@ -2144,22 +2119,22 @@ static function hookSetScale(STRUCT WMWinHookStruct &s)
 				pt.v = PosFromAxisVal(s.WinName, "left", ptY)
 				
 				variable val = isX ? hcsr($s.cursorName,s.WinName) : vcsr($s.cursorName,s.WinName)
-				SetVariable $"SetVar"+s.cursorName win=$s.WinName, value=_NUM:val, pos={pt.h-20,pt.v-10}, disable=0
+				SetVariable $"sv"+s.cursorName win=$s.WinName, value=_NUM:val, pos={pt.h-20,pt.v-10}, disable=0
 				break
 			endif
 	
 			// reposition or disable setvars when window is resized
 			s.eventCode = 7 // prepare to reenter this function with cursormoved eventcode
-			Make /free/T csr={"C","D","E","F"}
+			Make/free/T csr={"C","D","E","F"}
 			int i
 			for(i=0;i<4;i+=1)
 				s.cursorName = csr[i]
-				variable csrpos = i>1 ? vcsr($s.cursorName, s.WinName) : hcsr($s.cursorName, s.WinName)
-				GetAxis /Q/W=$s.WinName $SelectString(i>1, "bottom", "left")
+				variable csrpos = i > 1 ? vcsr($s.cursorName, s.WinName) : hcsr($s.cursorName, s.WinName)
+				GetAxis/Q/W=$s.WinName $SelectString(i>1, "bottom", "left")
 				if (csrpos>min(v_max,v_min) && csrpos<max(v_max,v_min))
 					hookSetScale(s)
 				else
-					SetVariable $"setvar"+(s.cursorName) win=$s.WinName, disable=1
+					SetVariable $"sv"+(s.cursorName) win=$s.WinName, disable=1
 				endif
 			endfor
 	endswitch
@@ -2174,7 +2149,7 @@ static function Rescale(STRUCT WMSetVariableAction &s)
 	string strImage = StringFromList(0, ImageNameList(s.win, ";"))
 	wave wImage = ImageNameToWaveRef(s.win, strImage)
 	int isX = GrepString((s.ctrlName), "[CD]"), autoscale = 1
-	ControlInfo /W=TracerPanel $SelectString(isX, "checkLogY_g1", "checkLogX_g1")
+	ControlInfo/W=TracerPanel $SelectString(isX, "chkLogY_g1", "chkLogX_g1")
 	int logAxis = v_value
 	if (logAxis && s.dval<=0)
 		SetVariable $s.ctrlName win=TracerGraph, value=_NUM:1
@@ -2186,16 +2161,16 @@ static function Rescale(STRUCT WMSetVariableAction &s)
 	flags = StringByKey("SETAXISFLAGS", AxisInfo(s.win, strAxis))
 	variable indexMin, indexMax
 	if (GrepString(flags, "/")==0)
-		GetAxis /Q $strAxis
+		GetAxis/Q $strAxis
 		indexMin = scaleToIndex(wImage, V_min, 1-isX)
 		indexMax = scaleToIndex(wImage, V_max, 1-isX)
 		autoscale = 0
 	endif
 	
 	variable ValCE, ValDF, delta, offset, oldDelta
-	ControlInfo /W=$s.win $SelectString(isX, "SetVarE", "SetVarC")
+	ControlInfo/W=$s.win $SelectString(isX, "svE", "svC")
 	ValCE = V_Value
-	ControlInfo /W=$s.win $SelectString(isX, "SetVarF", "SetVarD")
+	ControlInfo/W=$s.win $SelectString(isX, "svF", "svD")
 	ValDF = V_Value
 		
 	if(logAxis)
@@ -2209,7 +2184,7 @@ static function Rescale(STRUCT WMSetVariableAction &s)
 		variable high = alog(log(ValCE) + (DimSize(w,0)-1-p1)/(p2-p1)*(log(ValDF) - log(ValCE)))
 		strNote = ReplaceNumberByKey(SelectString(isX,"YHIGH","XHIGH"), strNote, low)
 		strNote = ReplaceNumberByKey(SelectString(isX,"YLOW","XLOW"), strNote, high)
-		note /K wImage, strNote
+		note/K wImage, strNote
 		
 		if (autoscale)
 			if (w[1] > w[0])
@@ -2233,9 +2208,9 @@ static function Rescale(STRUCT WMSetVariableAction &s)
 	offset = isX ? ValCE - delta*pcsr(C) : ValCE - delta*qcsr(E)
 	oldDelta = DimDelta(wImage, 1-isX)
 	if (isX)
-		SetScale /P x, offset, delta, wImage
+		SetScale/P x, offset, delta, wImage
 	else
-		SetScale /P y, offset, delta, wImage
+		SetScale/P y, offset, delta, wImage
 	endif
 	if (autoscale == 0)
 		// don't use IndexToScale, because ends of axis may fall outside of image
@@ -2243,15 +2218,15 @@ static function Rescale(STRUCT WMSetVariableAction &s)
 		v_max = DimOffset(wImage, 1-isX) + indexMax*DimDelta(wImage, 1-isX)
 				
 		if (v_min > v_max)
-			SetAxis /R/W=$s.win $strAxis v_min, v_max
+			SetAxis/R/W=$s.win $strAxis v_min, v_max
 		else
-			SetAxis /W=$s.win $strAxis v_min, v_max
+			SetAxis/W=$s.win $strAxis v_min, v_max
 		endif
 	elseif ((sign(oldDelta)==sign(delta)) %^ GrepString(flags, "/R"))
 		// switch the axis limits so that image is not flipped
-		SetAxis /A/W=$s.win $strAxis
+		SetAxis/A/W=$s.win $strAxis
 	else
-		SetAxis /A/R/W=$s.win $strAxis
+		SetAxis/A/R/W=$s.win $strAxis
 	endif
 
 	return 0
@@ -2282,25 +2257,25 @@ end
 
 static function CopyImageScale()
 	GetLastUserMenuInfo
-	wave /Z w = ImageNameToWaveRef(s_graphname, StringFromList(0, ImageNameList(s_graphname, ";")))
+	wave/Z w = ImageNameToWaveRef(s_graphname, StringFromList(0, ImageNameList(s_graphname, ";")))
 	if (WaveExists(w) == 0)
 		return 0
 	endif
 	string cmd = ""
-	sprintf cmd, "SetScale /P x, %g, %g, ###; SetScale /P y, %g, %g, ###;", DimOffset(w, 0), DimDelta(w, 0), DimOffset(w, 1), DimDelta(w, 1)
+	sprintf cmd, "SetScale/P x, %g, %g, ###; SetScale/P y, %g, %g, ###;", DimOffset(w, 0), DimDelta(w, 0), DimOffset(w, 1), DimDelta(w, 1)
 	PutScrapText cmd
 end
 
 static function PasteImageScale()
 	GetLastUserMenuInfo
 	string strImage = StringFromList(0, ImageNameList(s_graphname, ";"))
-	wave /Z wImage = ImageNameToWaveRef(s_graphname, strImage)
+	wave/Z wImage = ImageNameToWaveRef(s_graphname, strImage)
 	if (WaveExists(wImage) == 0)
 		return 0
 	endif
 	
 	variable x0, dx, y0, dy
-	sscanf GetScrapText(), "SetScale /P x, %g, %g, ###; SetScale /P y, %g, %g, ###;", x0, dx, y0, dy
+	sscanf GetScrapText(), "SetScale/P x, %g, %g, ###; SetScale/P y, %g, %g, ###;", x0, dx, y0, dy
 	if (V_flag != 4)
 		return 0
 	endif
@@ -2319,24 +2294,24 @@ static function PasteImageScale()
 		delta = dim ? dY : dX
 		
 		if (GrepString(flags, "/")==0)
-			GetAxis /Q $strAxis
+			GetAxis/Q $strAxis
 			indexMin = scaleToIndex(wImage, V_min, dim)
 			indexMax = scaleToIndex(wImage, V_max, dim)
 			autoscale = 0
 		endif
 		if (dim == 0)
-			SetScale /P x, x0, delta , wImage
+			SetScale/P x, x0, delta , wImage
 		else
-			SetScale /P y, y0, delta , wImage
+			SetScale/P y, y0, delta , wImage
 		endif
-		if (autoscale==0)
+		if (autoscale == 0)
 			
 			// don't use IndexToScale, because ends of axis may fall outside of image
 			v_min = DimOffset(wImage, dim) + indexMin*DimDelta(wImage, dim)
 			v_max = DimOffset(wImage, dim) + indexMax*DimDelta(wImage, dim)
 			
 			if (v_min > v_max)
-				SetAxis /R $strAxis v_min, v_max
+				SetAxis/R $strAxis v_min, v_max
 			else
 				SetAxis $strAxis v_min, v_max
 			endif
@@ -2344,9 +2319,9 @@ static function PasteImageScale()
 		if (sign(oldDelta) != sign(delta))
 			// switch the axis limits so that image is not flipped
 			if (GrepString(flags, "/R"))
-				SetAxis /A $strAxis
+				SetAxis/A $strAxis
 			elseif (GrepString(flags, "/A"))
-				SetAxis /A/R $strAxis
+				SetAxis/A/R $strAxis
 			endif
 		endif
 	endfor
@@ -2362,7 +2337,7 @@ end
 static function /wave CirclePointWave(int xm, int ym, int r)
 
 	int x = -r, y = 0, err = 2-2*r // 2nd Quadrant
-	Make /O/n=(0,4) wx, wy // columns for quadrants 1-4
+	Make/O/n=(0,4) wx, wy // columns for quadrants 1-4
 	do
 		wx[DimSize(wx,0)][] = {{xm-x},{xm-y},{xm+x},{xm+y}}
 		wy[DimSize(wy,0)][] = {{ym+y},{ym-x},{ym-y},{ym+x}}
@@ -2375,8 +2350,8 @@ static function /wave CirclePointWave(int xm, int ym, int r)
 		endif
 	while (x < 0)
 
-	Redimension /N=(4*DimSize(wx,0)) wx, wy
-	Concatenate /free {wx, wy}, w
+	Redimension/N=(4*DimSize(wx,0)) wx, wy
+	Concatenate/free {wx, wy}, w
 	return w
 end
 
@@ -2386,7 +2361,7 @@ static function /wave LinePointWave(int x0, int y0, int x1, int y1)
 	int dy = -abs(y1-y0), sy = y0<y1 ? 1 : -1
 	int err = dx+dy, e2 // error value e_xy */
 
-	Make /free/N=(0,2) w
+	Make/free/N=(0,2) w
 	do
 		w[DimSize(w,0)][] = {{x0}, {y0}}
 		//     	setPixel(x0,y0);
@@ -2409,7 +2384,7 @@ end
 static function MakeCirclePointWave(int xm, int ym, int r)
 
 	int x = -r, y = 0, err = 2-2*r // 2nd Quadrant
-	Make /O/n=(0,4) wx, wy // columns for quadrants 1-4
+	Make/O/n=(0,4) wx, wy // columns for quadrants 1-4
 	do
 		wx[DimSize(wx,0)][] = {{xm-x},{xm-y},{xm+x},{xm+y}}
 		wy[DimSize(wy,0)][] = {{ym+y},{ym-x},{ym-y},{ym+x}}
@@ -2422,9 +2397,9 @@ static function MakeCirclePointWave(int xm, int ym, int r)
 		endif
 	while (x < 0)
 
-	Redimension /N=(4*DimSize(wx,0)) wx, wy
-	Concatenate /free {wx, wy}, w
-	Duplicate /o w circle
+	Redimension/N=(4*DimSize(wx,0)) wx, wy
+	Concatenate/free {wx, wy}, w
+	Duplicate/O w circle
 end
 
 // *** Bezier to wave functions ***
@@ -2435,7 +2410,7 @@ static function CL_SetUpDrawingMode()
 		return 0
 	endif
 	
-	ShowTools/A/W=TracerGraph arrow// poly // this is potentially confusing for the user who tries to start drawing
+	ShowTools/A/W=TracerGraph arrow
 	SetDrawLayer/W=TracerGraph UserFront
 	SetDrawEnv/W=TracerGraph linefgc=(65535,0,0), fillpat=0, linethick=2.00, xcoord=bottom, ycoord=left
 	DoAlert 0, "Click on the polygon drawing tool, then select \"Draw Bezier\".\rClick 'Extract Bezier' to finish."
@@ -2455,11 +2430,11 @@ static function CL_ExtractBezier()
 	
 	// get control parameters
 	STRUCT PanelStatusStructure s
-	fillPanelStructure(s)
+	FillPanelStructure(s)
 	 	
 	if (CheckName(s.tracename.sval, 1))
 		DoAlert 1, s.tracename.sval + " already exists. Overwrite?"
-		if (V_Flag==2)
+		if (V_Flag == 2)
 			return 0
 		endif
 	endif
@@ -2487,9 +2462,9 @@ static function CL_ExtractBezier()
 	wave W_PolyX, W_PolyY
 	
 	if (!s.XY.value)
-		Make /free w_diff
+		Make/free w_diff
 		Differentiate W_PolyX /D=w_diff
-		WaveStats /Q/M=0 w_diff
+		WaveStats/Q/M=0 w_diff
 		if (V_max>0 && V_min<0)
 			DoAlert 0, "Curve is not monotonic in X, output will be XY data!"
 			s.XY.value = 1
@@ -2626,3 +2601,43 @@ static Picture pHelp
 	HR`A77"JcKsz8OZBBY!QNJ
 	ASCII85End
 end
+
+// returns truth that this procedure file has been updated since initialisation
+static function CheckUpdated(string win, int restart)	
+	if (cmpstr(GetUserData(win, "", "version"), num2str(ProcedureVersion(""))))
+		if (restart)
+			DoAlert 0, "You have updated the package since this panel was created.\r\rThe package will restart to update the control panel."
+			Initialise()
+		else
+			DoAlert 0, "You have updated the package since this panel was created.\r\rPlease close and reopen the panel to continue."
+		endif
+		return 1
+	endif
+	return 0
+end
+
+// note that neither built-in ProcedureVersion("") nor this function work
+// for independent modules!
+#if (exists("ProcedureVersion") != 3)
+// replicates ProcedureVersion function for older versions of Igor
+static function ProcedureVersion(string win)
+	variable noversion = 0 // default value when no version is found
+	if (strlen(win) == 0)
+		string strStack = GetRTStackInfo(3)
+		win = StringFromList(ItemsInList(strStack, ",") - 2, strStack, ",")
+		string IM = " [" + GetIndependentModuleName() + "]"
+	endif
+	
+	wave/T ProcText = ListToTextWave(ProcedureText("", 0, win + IM), "\r")	
+	
+	variable version
+	Grep/Q/E="(?i)^#pragma[\s]*version[\s]*=" /LIST/Z ProcText
+	s_value = LowerStr(TrimString(s_value, 1))
+	sscanf s_value, "#pragma version = %f", version
+
+	if (V_flag!=1 || version<=0)
+		return noversion
+	endif
+	return version	
+end
+#endif
